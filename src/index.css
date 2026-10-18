@@ -1,6 +1,65 @@
 @import "tailwindcss";
 
+:root {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
+  min-height: 100svh;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  background-color: #0b1120;
+  background-image:
+    radial-gradient(60rem 30rem at 85% -10%, rgb(16 185 129 / 0.14), transparent 60%),
+    radial-gradient(50rem 30rem at -10% 20%, rgb(56 189 248 / 0.1), transparent 60%);
+  background-attachment: fixed;
+  color: #e2e8f0;
 }
+
+.glass {
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background-color: rgb(255 255 255 / 0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+input,
+select,
+textarea {
+  background-color: rgb(255 255 255 / 0.05);
+  color: #f1f5f9;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #64748b;
+}
+
+/* Adapta al tema oscuro las pantallas que aún usan clases claras (Cobros, Clientes, Préstamos, Respaldo). */
+.bg-white {
+  background-color: rgb(255 255 255 / 0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.bg-slate-100 { background-color: rgb(255 255 255 / 0.08); }
+.bg-teal-50 { background-color: rgb(52 211 153 / 0.12); }
+.bg-rose-50 { background-color: rgb(251 113 133 / 0.12); }
+.bg-amber-50 { background-color: rgb(251 191 36 / 0.1); }
+.bg-teal-700 { background-color: #10b981; color: #022c22; }
+
+.border-slate-200,
+.border-slate-300,
+.border-slate-100 { border-color: rgb(255 255 255 / 0.1); }
+.border-rose-100 { border-color: rgb(251 113 133 / 0.25); }
+.border-amber-200 { border-color: rgb(251 191 36 / 0.25); }
+
+.text-slate-900 { color: #f8fafc; }
+.text-slate-700 { color: #cbd5e1; }
+.text-slate-600,
+.text-slate-500 { color: #94a3b8; }
+.text-slate-400 { color: #64748b; }
+.text-teal-800,
+.text-teal-900 { color: #6ee7b7; }
+.text-rose-700 { color: #fb7185; }
+.text-amber-900,
+.text-amber-700 { color: #fbbf24; }

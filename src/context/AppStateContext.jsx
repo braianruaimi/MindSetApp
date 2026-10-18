@@ -9,6 +9,7 @@ export function AppStateProvider({ children }) {
   const [backups, setBackups] = useState([]);
   const [backupWarning, setBackupWarning] = useState("");
   const [lastExportAt, setLastExportAt] = useState(() => getLastExportAt());
+  const [hydrated, setHydrated] = useState(false);
 
   const refreshBackups = useCallback(async () => {
     const snapshots = await listSnapshots();
@@ -19,7 +20,9 @@ export function AppStateProvider({ children }) {
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       requestPersistentStorage();
-      refreshBackups().catch((loadError) => setBackupWarning(loadError.message));
+      refreshBackups()
+        .catch((loadError) => setBackupWarning(loadError.message))
+        .finally(() => setHydrated(true));
     }, 0);
 
     async function handleMutation(event) {
@@ -56,12 +59,13 @@ export function AppStateProvider({ children }) {
     database,
     backups,
     backupWarning,
+    hydrated,
     lastExportAt,
     setLastExportAt,
     refreshBackups,
     commit,
     restoreState,
-  }), [database, backups, backupWarning, lastExportAt, refreshBackups, commit, restoreState]);
+  }), [database, backups, backupWarning, hydrated, lastExportAt, refreshBackups, commit, restoreState]);
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
 }

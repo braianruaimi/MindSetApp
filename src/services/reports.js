@@ -43,6 +43,34 @@ export function buildReport(database, today) {
   };
 }
 
+// Interés acumulado por mes de vencimiento: proyectado (todas las cuotas) vs real (cuotas cobradas).
+export function monthlyProjection(database) {
+  const months = new Map();
+  for (const loan of database.loans ?? []) {
+    for (const installment of loan.installments ?? []) {
+      const key = installment.dueDate.slice(0, 7);
+      const entry = months.get(key) ?? { key, projected: 0, real: 0 };
+      entry.projected += roundMoney(installment.interestPart);
+      if (installment.status === "paid") {
+        entry.real += roundMoney(installment.interestPart) + roundMoney(installment.lateFeeCharged);
+      }
+      months.set(key, entry);
+    }
+  }
+
+  let projectedTotal = 0;
+  let realTotal = 0;
+  return [...months.values()]
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map((entry) => {
+      projectedTotal += entry.projected;
+      realTotal += entry.real;
+      const [year, month] = entry.key.split("-").map(Number);
+      const label = new Intl.DateTimeFormat("es-AR", { month: "short", year: "2-digit" }).format(new Date(year, month - 1, 1));
+      return { month: label, proyectado: projectedTotal, real: realTotal };
+    });
+}
+
 function summarizeLoan(loan, today) {
   const summary = {
     id: loan.id,

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { LoanEditor } from "../components/LoanEditor";
 import { useAppState } from "../context/AppStateContext";
 import { clientName } from "../services/clients";
@@ -63,8 +64,10 @@ export function LoansPage() {
         (current) => registerCollection(current, selected.id, installment.id, collected, today),
         collected ? "collect: cuota" : "revert: cuota",
       );
+      toast.success(collected ? "Cobro registrado" : "Cobro revertido", { description: "Guardado en este dispositivo" });
     } catch (collectError) {
       setError(collectError.message);
+      toast.error(collectError.message);
     }
   }
 
@@ -93,7 +96,7 @@ export function LoansPage() {
           <h1 className="text-2xl font-semibold text-slate-900">Préstamos</h1>
           <p className="mt-1 text-sm text-slate-600">Tasa mensual sobre el capital. Mora: {formatMoney(LATE_FEE_PER_DAY)} por día.</p>
         </div>
-        <button type="button" onClick={() => { setError(""); setCreating(true); setEditing(false); setSelectedId(""); }} disabled={!preview.schedule} className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white disabled:opacity-60">
+        <button type="button" onClick={() => { setError(""); setCreating(true); setEditing(false); setSelectedId(""); }} className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white">
           Nuevo
         </button>
       </header>

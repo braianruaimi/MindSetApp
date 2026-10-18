@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { CollectBurst } from "../components/CollectBurst";
 import { useAppState } from "../context/AppStateContext";
 import { clientName } from "../services/clients";
 import {
@@ -22,6 +24,7 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
   const [selectedDate, setSelectedDate] = useState(today);
   const [visibleMonth, setVisibleMonth] = useState(() => monthOf(today));
   const [actionError, setActionError] = useState("");
+  const [burst, setBurst] = useState(0);
   const entries = useMemo(() => loanEntries(database), [database]);
   const dueByDate = useMemo(() => {
     const grouped = new Map();
@@ -53,8 +56,15 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
         (current) => registerCollection(current, entry.loan.id, entry.installment.id, collected, today),
         collected ? "collect: cuota" : "revert: cuota",
       );
+      if (collected) {
+        setBurst((current) => current + 1);
+        toast.success("Cobro registrado", { description: "Guardado en este dispositivo" });
+      } else {
+        toast("Cobro revertido");
+      }
     } catch (collectError) {
       setActionError(collectError.message);
+      toast.error(collectError.message);
     }
   }
 
@@ -65,10 +75,11 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
 
   return (
       <section className="mx-auto w-full max-w-2xl space-y-5">
+        <CollectBurst trigger={burst} />
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold text-slate-900">Cobros</h1>
-          <p className="text-sm text-slate-600">{formatDisplayDate(today)}           · guardado en este dispositivo</p>
-                 </header>
+          <p className="text-sm text-slate-600">{formatDisplayDate(today)} · guardado en este dispositivo</p>
+        </header>
 
                  {actionError && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{actionError}</p>}
 
@@ -102,9 +113,9 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
           </div>
         </div>
 
-        <CollectionSection title={selectedDate === today ? "Cobros de hoy" : `Cobros del ${formatDisplayDate(selectedDate)}`} total={dayTotal} entries={selectedEntries} clients={database.clients} today={today} syncing={syncing || !ready} onToggle={toggleCollection} empty="No hay cuotas para esta fecha." />
-        <CollectionSection title="Atrasados" entries={overdue} clients={database.clients} today={today} syncing={syncing || !ready} onToggle={toggleCollection} empty="No hay cuotas atrasadas." />
-        <CollectionSection title="Próximos 7 días" entries={upcoming} clients={database.clients} today={today} syncing={syncing || !ready} onToggle={toggleCollection} empty="No hay vencimientos en los próximos 7 días." />
+        <CollectionSection title={selectedDate === today ? "Cobros de hoy" : `Cobros del ${formatDisplayDate(selectedDate)}`} total={dayTotal} entries={selectedEntries} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} empty="No hay cuotas para esta fecha." />
+        <CollectionSection title="Atrasados" entries={overdue} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} empty="No hay cuotas atrasadas." />
+        <CollectionSection title="Próximos 7 días" entries={upcoming} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} empty="No hay vencimientos en los próximos 7 días." />
 
         <div className="flex flex-col gap-3 sm:flex-row">
           <button type="button" onClick={onOpenClients} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700">Clientes</button>
