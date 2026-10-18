@@ -1,14 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import { SettingsGate } from "../components/SettingsGate";
 import { useAppState } from "../context/AppStateContext";
 import { deleteSnapshot, downloadSnapshot, parseBackupText } from "../services/backups";
+import { markExported } from "../services/storage";
 import { formatDisplayDate } from "../utils/dates";
 
 export function BackupsPage() {
-  const { database, status, syncing, backups, backupWarning, refreshBackups, restoreState } = useAppState();
+  const { database, backups, backupWarning, lastExportAt, setLastExportAt, refreshBackups, restoreState } = useAppState();
   const [error, setError] = useState("");
   const [pendingId, setPendingId] = useState("");
+  const [pendingImport, setPendingImport] = useState(null);
   const fileInput = useRef(null);
+
+  function handleDownloadCurrent() {
+    downloadSnapshot({ createdAt: new Date().toISOString(), state: database });
+    markExported();
+    setLastExportAt(new Date().toISOString());
+  }
 
   useEffect(() => {
     refreshBackups().catch((loadError) => setError(loadError.message));
@@ -31,7 +38,17 @@ export function BackupsPage() {
     setError("");
     try {
       const state = parseBackupText(await file.text());
-      await restoreState(state, "restore: archivo importado");
+      setPendingImport(state);
+    } catch (importError) {
+      setError(importError.message);
+    }
+  }
+
+  async function confirmImport() {
+    setError("");
+    try {
+      await restoreState(pendingImport, "restore: archivo importado");
+      setPendingImport(null);
     } catch (importError) {
       setError(importError.message);
     }
@@ -48,22 +65,31 @@ export function BackupsPage() {
   }
 
   return (
-      <SettingsGate>
-      <section className="mx-auto w-full max-w-2xl space-y-5">
+    <section className="mx-auto w-full max-w-2xl space-y-5">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-slate-900">Backups</h1>
-        <p className="text-sm leading-6 text-slate-600">Cada cambio queda en este dispositivo, aparte de GitHub. Restaurar también vuelve a escribir database.json en el repositorio.</p>
+        <h1 className="text-2xl font-semibold text-slate-900">Respaldo</h1>
+        <p className="text-sm leading-6 text-slate-600">Todo se guarda automáticamente en este dispositivo. Descarga el JSON seguido: si se borran los datos del navegador, lo importas y recuperas todo.</p>
+        <p className="text-xs text-slate-500">{lastExportAt ? `Última descarga: ${formatSnapshotDate(lastExportAt)}` : "Todavía no descargaste ningún respaldo."}</p>
       </header>
 
       <div className="flex flex-col gap-3 sm:flex-row">
-        <button type="button" onClick={() => downloadSnapshot({ createdAt: new Date().toISOString(), state: database })} className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white">Descargar estado actual</button>
-        <button type="button" onClick={() => fileInput.current?.click()} disabled={syncing || status === "unconfigured"} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 disabled:opacity-60">Importar JSON</button>
+        <button type="button" onClick={handleDownloadCurrent} className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white">Descargar respaldo (.json)</button>
+        <button type="button" onClick={() => fileInput.current?.click()} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700">Cargar respaldo JSON</button>
         <input ref={fileInput} type="file" accept="application/json,.json" className="hidden" onChange={handleImport} />
       </div>
 
-      {status === "unconfigured" && <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">Para restaurar hace falta la configuración de GitHub. Descargar sigue disponible.</p>}
+      {pendingImport && (
+        <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p>El archivo tiene {pendingImport.clients.length} clientes y {pendingImport.loans.length} préstamos. Reemplazará los datos actuales.</p>
+          <div className="flex gap-4">
+            <button type="button" onClick={confirmImport} className="font-medium text-rose-700">Reemplazar datos</button>
+            <button type="button" onClick={() => setPendingImport(null)} className="text-slate-600">Cancelar</button>
+          </div>
+        </div>
+      )}
       {(error || backupWarning) && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error || backupWarning}</p>}
 
+      <h2 className="pt-2 text-sm font-medium text-slate-700">Historial reciente en este dispositivo</h2>
       <ul className="space-y-3">
         {backups.map((snapshot) => (
           <li key={snapshot.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -73,7 +99,7 @@ export function BackupsPage() {
               <button type="button" onClick={() => downloadSnapshot(snapshot)} className="font-medium text-teal-800">Descargar</button>
               {pendingId === snapshot.id ? (
                 <>
-                  <button type="button" onClick={() => handleRestore(snapshot)} disabled={syncing || status !== "ready"} className="font-medium text-rose-700 disabled:opacity-60">Confirmar restauración</button>
+                  <button type="button" onClick={() => handleRestore(snapshot)} className="font-medium text-rose-700">Confirmar restauración</button>
                   <button type="button" onClick={() => setPendingId("")} className="text-slate-500">Cancelar</button>
                 </>
               ) : (
@@ -86,9 +112,8 @@ export function BackupsPage() {
       </ul>
       {backups.length === 0 && <p className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">Todavía no hay cambios en el historial local.</p>}
     </section>
-        </SettingsGate>
-      );
-    }
+  );
+}
 
 function formatSnapshotDate(value) {
   const date = new Date(value);

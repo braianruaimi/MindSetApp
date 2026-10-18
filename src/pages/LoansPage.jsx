@@ -33,15 +33,15 @@ const STATUS_LABEL = {
   overdue: "Atrasado",
 };
 
-export function LoansPage({ onOpenSettings }) {
-  const { database, status, remoteMissing, syncing, commit } = useAppState();
+export function LoansPage() {
+  const { database, commit } = useAppState();
+  const syncing = false;
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(false);
   const [selectedId, setSelectedId] = useState("");
   const [error, setError] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState("");
   const today = todayISODate();
-  const ready = status === "ready" && !remoteMissing;
   const selected = (database.loans ?? []).find((loan) => loan.id === selectedId) ?? null;
 
   const loans = useMemo(() => {
@@ -86,13 +86,6 @@ export function LoansPage({ onOpenSettings }) {
     }
   }
 
-  if (status === "unconfigured") {
-    return <Blocked title="Falta la configuración" text="Conecta el repositorio antes de cargar préstamos." actionLabel="Abrir configuración" onAction={onOpenSettings} />;
-  }
-  if (remoteMissing) {
-    return <Blocked title="Falta database.json" text="Crea el archivo remoto desde Inicio antes de guardar préstamos." />;
-  }
-
   return (
     <section className="mx-auto w-full max-w-2xl space-y-5">
       <header className="flex items-start justify-between gap-3">
@@ -100,7 +93,7 @@ export function LoansPage({ onOpenSettings }) {
           <h1 className="text-2xl font-semibold text-slate-900">Préstamos</h1>
           <p className="mt-1 text-sm text-slate-600">Tasa mensual sobre el capital. Mora: {formatMoney(LATE_FEE_PER_DAY)} por día.</p>
         </div>
-        <button type="button" onClick={() => { setError(""); setCreating(true); setEditing(false); setSelectedId(""); }} disabled={!ready || syncing} className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white disabled:opacity-60">
+        <button type="button" onClick={() => { setError(""); setCreating(true); setEditing(false); setSelectedId(""); }} disabled={!preview.schedule} className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white disabled:opacity-60">
           Nuevo
         </button>
       </header>
@@ -338,12 +331,3 @@ function TextField({ label, onChange, ...props }) {
   );
 }
 
-function Blocked({ title, text, actionLabel, onAction }) {
-  return (
-    <section className="mx-auto w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
-      <p className="mt-2 text-sm text-slate-600">{text}</p>
-      {actionLabel && <button type="button" onClick={onAction} className="mt-4 rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white">{actionLabel}</button>}
-    </section>
-  );
-}

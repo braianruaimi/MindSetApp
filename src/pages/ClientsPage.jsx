@@ -11,13 +11,12 @@ const EMPTY_FORM = {
   address: "",
 };
 
-export function ClientsPage({ onOpenSettings }) {
-  const { database, status, remoteMissing, syncing, commit } = useAppState();
+export function ClientsPage() {
+  const { database, commit } = useAppState();
   const [query, setQuery] = useState("");
   const [form, setForm] = useState(null);
   const [error, setError] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState("");
-  const ready = status === "ready" && !remoteMissing;
 
   const clients = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -73,26 +72,6 @@ export function ClientsPage({ onOpenSettings }) {
     }
   }
 
-  if (status === "unconfigured") {
-    return (
-      <EmptyState
-        title="Falta la configuración"
-        text="Conecta el repositorio privado antes de cargar clientes."
-        actionLabel="Abrir configuración"
-        onAction={onOpenSettings}
-      />
-    );
-  }
-
-  if (remoteMissing) {
-    return (
-      <EmptyState
-        title="Falta database.json"
-        text="Crea el archivo remoto desde Inicio antes de guardar clientes."
-      />
-    );
-  }
-
   return (
     <section className="mx-auto w-full max-w-2xl space-y-5">
       <header className="flex items-start justify-between gap-3">
@@ -100,7 +79,7 @@ export function ClientsPage({ onOpenSettings }) {
           <h1 className="text-2xl font-semibold text-slate-900">Clientes</h1>
           <p className="mt-1 text-sm text-slate-600">{database.clients.length} registrados</p>
         </div>
-        <button type="button" onClick={openCreate} disabled={!ready || syncing} className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white disabled:opacity-60">
+        <button type="button" onClick={openCreate} className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white">
           Nuevo
         </button>
       </header>
@@ -124,8 +103,8 @@ export function ClientsPage({ onOpenSettings }) {
           <Field label="Dirección" name="address" value={form.address} onChange={updateField} required />
           {error && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
           <div className="flex flex-col gap-3 sm:flex-row">
-            <button type="submit" disabled={syncing} className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white disabled:opacity-60">
-              {syncing ? "Guardando..." : "Guardar"}
+            <button type="submit" className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white">
+              Guardar
             </button>
             <button type="button" onClick={() => setForm(null)} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700">
               Cancelar
@@ -152,7 +131,7 @@ export function ClientsPage({ onOpenSettings }) {
             <div className="mt-3">
               {pendingDeleteId === client.id ? (
                 <div className="flex gap-3 text-sm">
-                  <button type="button" onClick={() => handleDelete(client.id)} disabled={syncing} className="font-medium text-rose-700 disabled:opacity-60">
+                  <button type="button" onClick={() => handleDelete(client.id)} className="font-medium text-rose-700">
                     Confirmar eliminación
                   </button>
                   <button type="button" onClick={() => setPendingDeleteId("")} className="text-slate-500">
@@ -192,16 +171,3 @@ function Field({ label, ...props }) {
   );
 }
 
-function EmptyState({ title, text, actionLabel, onAction }) {
-  return (
-    <section className="mx-auto w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
-      <p className="mt-2 text-sm text-slate-600">{text}</p>
-      {actionLabel && (
-        <button type="button" onClick={onAction} className="mt-4 rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white">
-          {actionLabel}
-        </button>
-      )}
-    </section>
-  );
-}

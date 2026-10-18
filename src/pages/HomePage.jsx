@@ -15,13 +15,13 @@ import { formatMoney } from "../utils/money";
 const WEEKDAYS = ["L", "M", "X", "J", "V", "S", "D"];
 const STATUS_LABEL = { paid: "Cobrado", pending: "Pendiente", overdue: "Atrasado" };
 
-export function HomePage({ onOpenSettings, onOpenClients, onOpenLoans }) {
-  const { config, database, status, error, remoteMissing, syncing, reload, initializeRemote, commit } = useAppState();
+export function HomePage({ onOpenClients, onOpenLoans }) {
+  const { database, commit } = useAppState();
+  const syncing = false;
   const today = todayISODate();
   const [selectedDate, setSelectedDate] = useState(today);
   const [visibleMonth, setVisibleMonth] = useState(() => monthOf(today));
   const [actionError, setActionError] = useState("");
-  const ready = status === "ready" && !remoteMissing;
   const entries = useMemo(() => loanEntries(database), [database]);
   const dueByDate = useMemo(() => {
     const grouped = new Map();
@@ -67,12 +67,10 @@ export function HomePage({ onOpenSettings, onOpenClients, onOpenLoans }) {
       <section className="mx-auto w-full max-w-2xl space-y-5">
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold text-slate-900">Cobros</h1>
-          <p className="text-sm text-slate-600">{formatDisplayDate(today)} · {config ? "sincronizado con GitHub" : "sin repositorio"}</p>
-        </header>
+          <p className="text-sm text-slate-600">{formatDisplayDate(today)}           · guardado en este dispositivo</p>
+                 </header>
 
-        {status === "unconfigured" && <Notice text="Conecta el repositorio en Ajustes para ver los vencimientos." actionLabel="Abrir ajustes" onAction={onOpenSettings} />}
-        {remoteMissing && <Notice text="El repositorio no tiene database.json." actionLabel="Crear archivo" onAction={() => initializeRemote()} />}
-        {(error || actionError) && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{actionError || error}</p>}
+                 {actionError && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{actionError}</p>}
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
@@ -109,7 +107,6 @@ export function HomePage({ onOpenSettings, onOpenClients, onOpenLoans }) {
         <CollectionSection title="Próximos 7 días" entries={upcoming} clients={database.clients} today={today} syncing={syncing || !ready} onToggle={toggleCollection} empty="No hay vencimientos en los próximos 7 días." />
 
         <div className="flex flex-col gap-3 sm:flex-row">
-          <button type="button" onClick={() => reload().catch(() => undefined)} disabled={!config || syncing} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 disabled:opacity-60">Volver a leer</button>
           <button type="button" onClick={onOpenClients} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700">Clientes</button>
           <button type="button" onClick={onOpenLoans} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700">Préstamos</button>
         </div>
@@ -153,15 +150,6 @@ export function HomePage({ onOpenSettings, onOpenClients, onOpenLoans }) {
           </ul>
         )}
       </section>
-    );
-  }
-
-  function Notice({ text, actionLabel, onAction }) {
-    return (
-      <div className="flex flex-col gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
-        <p>{text}</p>
-        <button type="button" onClick={onAction} className="rounded-lg bg-amber-700 px-3 py-2 font-medium text-white">{actionLabel}</button>
-      </div>
     );
   }
 

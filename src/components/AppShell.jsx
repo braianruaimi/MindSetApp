@@ -4,21 +4,23 @@ const NAV_ITEMS = [
   { id: "home", label: "Cobros" },
   { id: "clients", label: "Clientes" },
   { id: "loans", label: "Préstamos" },
-    { id: "reports", label: "Ganancias" },
-    { id: "settings", label: "Ajustes" },
+  { id: "reports", label: "Ganancias" },
+  { id: "backups", label: "Respaldo" },
 ];
 
 export function AppShell({ view, onChangeView, children }) {
-  const { syncing, status } = useAppState();
+  const { lastExportAt } = useAppState();
+  const days = lastExportAt ? Math.floor((Date.now() - new Date(lastExportAt).getTime()) / 86400000) : null;
+  const stale = days === null || days >= 7;
 
   return (
     <div className="min-h-svh bg-slate-100 text-slate-900">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex w-full max-w-2xl items-center justify-between px-4 py-4">
           <span className="text-sm font-semibold tracking-wide text-teal-800">MINDSET</span>
-          <span className="text-xs text-slate-500">
-            {syncing ? "Guardando..." : status === "ready" ? "En línea" : "Sin sincronizar"}
-          </span>
+          <button type="button" onClick={() => onChangeView("backups")} className={`text-xs ${stale ? "font-medium text-amber-700" : "text-slate-500"}`}>
+            {days === null ? "Sin respaldo descargado" : days === 0 ? "Respaldo de hoy" : `Último respaldo: hace ${days} d`}
+          </button>
         </div>
       </header>
       <main className="px-4 py-6 pb-28">{children}</main>

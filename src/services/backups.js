@@ -1,4 +1,4 @@
-import { normalizeDatabase } from "./githubSync";
+import { normalizeDatabase } from "./storage";
 
 export const BACKUP_EVENT = "mindset:data-mutated";
 const DB_NAME = "mindset-backups";

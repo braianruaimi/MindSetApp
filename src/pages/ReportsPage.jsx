@@ -4,14 +4,10 @@ import { buildReport } from "../services/reports";
 import { todayISODate } from "../utils/dates";
 import { formatMoney } from "../utils/money";
 
-export function ReportsPage({ onOpenSettings }) {
-  const { database, status, remoteMissing } = useAppState();
+export function ReportsPage() {
+  const { database } = useAppState();
   const today = todayISODate();
   const report = useMemo(() => buildReport(database, today), [database, today]);
-
-  if (status === "unconfigured") {
-    return <Blocked title="Falta la configuración" text="Conecta el repositorio para calcular los reportes." actionLabel="Abrir ajustes" onAction={onOpenSettings} />;
-  }
 
   return (
     <section className="mx-auto w-full max-w-2xl space-y-5">
@@ -19,8 +15,6 @@ export function ReportsPage({ onOpenSettings }) {
         <h1 className="text-2xl font-semibold text-slate-900">Ganancias</h1>
         <p className="mt-1 text-sm text-slate-600">{report.activeLoans} préstamos activos de {report.loanCount}. La mora se suma al dinero en la calle hasta que se cobra.</p>
       </header>
-
-      {remoteMissing && <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">Todavía no hay database.json. Los números están en cero.</p>}
 
       <div className="grid grid-cols-2 gap-3">
         <Metric label="Capital prestado" value={formatMoney(report.capitalLent)} />
@@ -71,12 +65,3 @@ function Metric({ label, value, detail, tone = "default" }) {
   );
 }
 
-function Blocked({ title, text, actionLabel, onAction }) {
-  return (
-    <section className="mx-auto w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
-      <p className="mt-2 text-sm text-slate-600">{text}</p>
-      <button type="button" onClick={onAction} className="mt-4 rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white">{actionLabel}</button>
-    </section>
-  );
-}
