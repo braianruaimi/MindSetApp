@@ -116,11 +116,19 @@ function loanDetail(before, after, action) {
     .map((id) => ({ before: oldInstallments.get(id), after: newInstallments.get(id) }))
     .filter((entry) => JSON.stringify(entry.before) !== JSON.stringify(entry.after));
 
+  if (action === "edit: mora") {
+    const installment = changed[0]?.after;
+    if (installment) {
+      const fee = installment.lateFeeOverride;
+      return `Cuota ${installment.number} · ${fee === null || fee === undefined ? "mora automática restaurada" : fee === 0 ? "mora eliminada" : `mora ${formatMoney(fee)}`}`;
+    }
+  }
   if (action === "collect: cuota" || action === "revert: cuota") {
     const installment = changed[0]?.after ?? changed[0]?.before;
     if (installment) {
       const amount = installment.paidAmount ?? installment.amount;
-      return `${action === "collect: cuota" ? "Cobrado" : "Revertido"} · cuota ${installment.number} · ${formatMoney(amount)}`;
+      const when = action === "collect: cuota" && installment.paidDate ? ` · pagada el ${installment.paidDate}` : "";
+      return `${action === "collect: cuota" ? "Cobrado" : "Revertido"} · cuota ${installment.number} · ${formatMoney(amount)}${when}`;
     }
   }
   if (before.capital !== after.capital) {

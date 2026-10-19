@@ -270,7 +270,8 @@ export function collectionDateForInstallment(installment) {
   return paidDateOf(installment) ?? installment?.dueDate;
 }
 
-export function registerCollection(database, loanId, installmentId, collected, today) {
+// options.paidDate: día real del pago (puede ser anterior a hoy); options.lateFee: mora a cobrar (0 = sin mora).
+export function registerCollection(database, loanId, installmentId, collected, today, options = {}) {
   const loans = database.loans ?? [];
   const loan = loans.find((item) => item.id === loanId);
   const installment = loan?.installments?.find((item) => item.id === installmentId);
@@ -279,7 +280,21 @@ export function registerCollection(database, loanId, installmentId, collected, t
   const alreadyPaid = installment.status === "paid";
   if (collected === alreadyPaid) return database;
 
-  const lateFee = collected ? lateFeeForInstallment({ ...installment, status: "pending", lateFeeCharged: 0 }, today) : 0;
+  const paidDate = options.paidDate || today;
+  if (collected) {
+    if (!parseISODate(paidDate)) throw new Error("La fecha de pago no es válida.");
+    if (daysAfter(today, paidDate) > 0) throw new Error("La fecha de pago no puede ser futura.");
+  }
+  let lateFee = 0;
+  if (collected) {
+    const hasManualFee = options.lateFee !== undefined && options.lateFee !== null && String(options.lateFee).trim() !== "";
+    if (hasManualFee) {
+      lateFee = roundMoney(options.lateFee);
+      if (!(lateFee >= 0)) throw new Error("La mora no puede ser negativa.");
+    } else {
+      lateFee = lateFeeForInstallment({ ...installment, status: "pending", lateFeeCharged: 0 }, paidDate);
+    }
+  }
   const installments = loan.installments.map((item) => {
     if (item.id !== installmentId) return item;
     if (!collected) {
@@ -289,7 +304,7 @@ export function registerCollection(database, loanId, installmentId, collected, t
       ...item,
       status: "paid",
       paidAt: new Date().toISOString(),
-      paidDate: today,
+      paidDate,
       paidAmount: roundMoney(item.amount) + lateFee,
       lateFeeCharged: lateFee,
     };
@@ -301,6 +316,25 @@ export function registerCollection(database, loanId, installmentId, collected, t
       ...item,
       installments,
       status: installments.every((entry) => entry.status === "paid") ? "paid" : "active",
+      updatedAt: new Date().toISOString(),
+    } : item)),
+  };
+}
+
+// amount: 0 elimina la mora de una cuota pendiente; null vuelve al cálculo automático.
+export function setLateFee(database, loanId, installmentId, amount) {
+  const loan = (database.loans ?? []).find((item) => item.id === loanId);
+  const installment = loan?.installments?.find((item) => item.id === installmentId);
+  if (!loan || !installment) throw new Error("No se encontró la cuota.");
+  if (installment.status === "paid") throw new Error("La mora de una cuota cobrada se corrige revirtiendo el cobro.");
+  const override = blankToNull(amount);
+  if (override !== null && !(override >= 0)) throw new Error("La mora no puede ser negativa.");
+
+  return {
+    ...database,
+    loans: database.loans.map((item) => (item.id === loanId ? {
+      ...item,
+      installments: item.installments.map((entry) => (entry.id === installmentId ? { ...entry, lateFeeOverride: override } : entry)),
       updatedAt: new Date().toISOString(),
     } : item)),
   };

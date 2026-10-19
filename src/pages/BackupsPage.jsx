@@ -350,6 +350,7 @@ function actionLabel(action) {
   const labels = {
     "collect: cuota": "Cobro registrado",
     "revert: cuota": "Cobro revertido",
+    "edit: mora": "Mora modificada",
     "create: préstamo": "Préstamo creado",
     "edit: préstamo": "Préstamo editado",
     "delete: préstamo": "Préstamo eliminado",

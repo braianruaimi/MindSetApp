@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { CalendarDays, ChevronRight, CirclePlus, Landmark, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { LoanEditor } from "../components/LoanEditor";
+import { CollectionControls } from "../components/CollectionControls";
 import { useAppState } from "../context/AppStateContext";
 import { clientName } from "../services/clients";
 import {
@@ -16,6 +17,7 @@ import {
   lateFeeForInstallment,
   outstandingBalance,
     registerCollection,
+    setLateFee,
     removeLoan,
         updateLoan,
   } from "../services/loans";
@@ -62,19 +64,31 @@ export function LoansPage() {
     setCreating(false);
   }
 
-  async function handleCollect(installment) {
+  async function handleCollect(installment, options) {
     if (!selected) return;
     setError("");
     try {
       const collected = installment.status !== "paid";
       await commit(
-        (current) => registerCollection(current, selected.id, installment.id, collected, today),
+        (current) => registerCollection(current, selected.id, installment.id, collected, today, options),
         collected ? "collect: cuota" : "revert: cuota",
       );
       toast.success(collected ? "Cobro registrado" : "Cobro revertido", { description: "Guardado en este dispositivo" });
     } catch (collectError) {
       setError(collectError.message);
       toast.error(collectError.message);
+    }
+  }
+
+  async function handleLateFee(installment, amount) {
+    if (!selected) return;
+    setError("");
+    try {
+      await commit((current) => setLateFee(current, selected.id, installment.id, amount), "edit: mora");
+      toast(amount === null ? "Mora automática restaurada" : "Mora eliminada");
+    } catch (feeError) {
+      setError(feeError.message);
+      toast.error(feeError.message);
     }
   }
 
@@ -140,9 +154,10 @@ export function LoansPage() {
           onAskDelete={() => setPendingDeleteId(selected.id)}
           onCancelDelete={() => setPendingDeleteId("")}
           onDelete={() => handleDelete(selected.id)}
-                    onCollect={handleCollect}
-                              onEdit={() => setEditing(true)}
-                                      />
+          onCollect={handleCollect}
+          onSetLateFee={handleLateFee}
+          onEdit={() => setEditing(true)}
+        />
       )}
 
       <ul className="space-y-3">
@@ -299,7 +314,7 @@ function LoanForm({ clients, syncing, onCancel, onSubmit }) {
   );
 }
 
-function LoanDetail({ loan, client, today, syncing, pendingDelete, onBack, onAskDelete, onCancelDelete, onDelete, onCollect, onEdit }) {
+function LoanDetail({ loan, client, today, syncing, pendingDelete, onBack, onAskDelete, onCancelDelete, onDelete, onCollect, onSetLateFee, onEdit }) {
   return (
     <article className="glass space-y-4 rounded-3xl p-5 sm:p-6">
       <div className="flex items-start justify-between gap-3">
@@ -312,7 +327,7 @@ function LoanDetail({ loan, client, today, syncing, pendingDelete, onBack, onAsk
           <button type="button" onClick={onBack} className="text-sm font-medium text-slate-400 hover:text-white">Cerrar</button>
         </div>
       </div>
-      <ScheduleTable installments={loan.installments ?? []} today={today} total={loan.totalAmount} syncing={syncing} onCollect={onCollect} />
+      <ScheduleTable installments={loan.installments ?? []} today={today} total={loan.totalAmount} syncing={syncing} onCollect={onCollect} onSetLateFee={onSetLateFee} />
       {pendingDelete ? (
         <div className="flex gap-3 text-sm">
           <button type="button" onClick={onDelete} disabled={syncing} className="font-medium text-rose-700 disabled:opacity-60">Confirmar eliminación</button>
@@ -325,7 +340,7 @@ function LoanDetail({ loan, client, today, syncing, pendingDelete, onBack, onAsk
   );
 }
 
-function ScheduleTable({ installments, today, total, syncing = false, onCollect }) {
+function ScheduleTable({ installments, today, total, syncing = false, onCollect, onSetLateFee }) {
   const capital = installments.reduce((sum, installment) => sum + Number(installment.capitalPart || 0), 0);
   const agreedTotal = total ?? installments.reduce((sum, installment) => sum + Number(installment.amount || 0), 0);
   const returnAmount = agreedTotal - capital;
@@ -380,14 +395,14 @@ function ScheduleTable({ installments, today, total, syncing = false, onCollect 
               </div>
 
               {onCollect && (
-                <button
-                  type="button"
+                <CollectionControls
+                  installment={installment}
+                  today={today}
                   disabled={syncing}
-                  onClick={() => onCollect(installment)}
-                  className={`mt-3 w-full rounded-xl border px-3 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${installment.status === "paid" ? "border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]" : "border-emerald-300/15 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15"}`}
-                >
-                  {installment.status === "paid" ? "Marcar como pendiente" : "Registrar cobro"}
-                </button>
+                  onCollect={(options) => onCollect(installment, options)}
+                  onRevert={() => onCollect(installment)}
+                  onSetLateFee={onSetLateFee ? (amount) => onSetLateFee(installment, amount) : undefined}
+                />
               )}
             </article>
           );

@@ -3,7 +3,7 @@ import { buildReport } from "./reports";
 import { compareBackup, backupReminder, inspectBackup, verifyBackupText } from "./backupVerify";
 import { encryptBackupTextWithPin } from "./backupCrypto";
 import { EMPTY_FILTERS, filterEntries, summarizeEntries } from "./collectionsFilter";
-import { loanEntries } from "./loans";
+import { collectionDateForInstallment, lateFeeForInstallment, loanEntries, registerCollection, setLateFee } from "./loans";
 
 const installment = (id, number, dueDate, status, extra = {}) => ({
   id, number, dueDate, status, amount: 400_000, capitalPart: 333_333, interestPart: 66_667,
@@ -32,6 +32,33 @@ function sampleDatabase() {
     ],
   };
 }
+
+describe("cobros con fecha real y mora editable", () => {
+  const base = () => ({
+    clients: [],
+    loans: [{ id: "l", status: "active", installments: [{ id: "i", number: 1, dueDate: "2025-01-10", amount: 100_000, status: "pending" }] }],
+  });
+
+  it("registra un pago de meses anteriores con su fecha y mora a esa fecha", () => {
+    const paid = registerCollection(base(), "l", "i", true, "2025-06-01", { paidDate: "2025-01-12" });
+    expect(paid.loans[0].installments[0]).toMatchObject({ status: "paid", paidDate: "2025-01-12", lateFeeCharged: 20_000, paidAmount: 120_000 });
+    expect(collectionDateForInstallment(paid.loans[0].installments[0])).toBe("2025-01-12");
+  });
+
+  it("permite quitar la mora al cobrar o antes de cobrar", () => {
+    const noFee = registerCollection(base(), "l", "i", true, "2025-06-01", { paidDate: "2025-01-12", lateFee: 0 });
+    expect(noFee.loans[0].installments[0]).toMatchObject({ lateFeeCharged: 0, paidAmount: 100_000 });
+    const removed = setLateFee(base(), "l", "i", 0);
+    expect(lateFeeForInstallment(removed.loans[0].installments[0], "2025-06-01")).toBe(0);
+    const restored = setLateFee(removed, "l", "i", null);
+    expect(lateFeeForInstallment(restored.loans[0].installments[0], "2025-01-12")).toBe(20_000);
+  });
+
+  it("rechaza fechas futuras o inválidas", () => {
+    expect(() => registerCollection(base(), "l", "i", true, "2025-06-01", { paidDate: "2025-07-01" })).toThrow("futura");
+    expect(() => registerCollection(base(), "l", "i", true, "2025-06-01", { paidDate: "2025-13-45" })).toThrow("válida");
+  });
+});
 
 describe("reportes: capital y ganancias separados", () => {
   it("el dinero en la calle es solo el capital que falta recuperar", () => {

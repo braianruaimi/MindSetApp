@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { CalendarDays, ChevronLeft, ChevronRight, Filter, Landmark, Users } from "lucide-react";
 import { toast } from "sonner";
+import { CollectionControls } from "../components/CollectionControls";
 import { CollectBurst } from "../components/CollectBurst";
 import { useAppState } from "../context/AppStateContext";
 import { clientName } from "../services/clients";
@@ -14,12 +15,12 @@ import {
   loanEntries,
   outstandingBalance,
   registerCollection,
+  setLateFee,
 } from "../services/loans";
 import { daysAfter, formatDisplayDate, monthCells, todayISODate } from "../utils/dates";
 import { formatMoney } from "../utils/money";
 
 const WEEKDAYS = ["L", "M", "X", "J", "V", "S", "D"];
-const STATUS_LABEL = { paid: "Cobrado", pending: "Pendiente", overdue: "Atrasado" };
 
 export function HomePage({ onOpenClients, onOpenLoans }) {
   const { database, commit } = useAppState();
@@ -63,25 +64,37 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
   });
   const cells = monthCells(visibleMonth.year, visibleMonth.month);
 
-  async function toggleCollection(entry) {
+  async function toggleCollection(entry, options) {
     setActionError("");
     const collected = entry.installment.status !== "paid";
     try {
       await commit(
-        (current) => registerCollection(current, entry.loan.id, entry.installment.id, collected, today),
+        (current) => registerCollection(current, entry.loan.id, entry.installment.id, collected, today, options),
         collected ? "collect: cuota" : "revert: cuota",
       );
       if (collected) {
-        setSelectedDate(today);
-        setVisibleMonth(monthOf(today));
+        const paidDate = options?.paidDate || today;
+        setSelectedDate(paidDate);
+        setVisibleMonth(monthOf(paidDate));
         setBurst((current) => current + 1);
-        toast.success("Cobro registrado", { description: "Guardado en este dispositivo" });
+        toast.success("Cobro registrado", { description: `Pagado el ${formatDisplayDate(paidDate)} · guardado en este dispositivo` });
       } else {
         toast("Cobro revertido");
       }
     } catch (collectError) {
       setActionError(collectError.message);
       toast.error(collectError.message);
+    }
+  }
+
+  async function changeLateFee(entry, amount) {
+    setActionError("");
+    try {
+      await commit((current) => setLateFee(current, entry.loan.id, entry.installment.id, amount), "edit: mora");
+      toast(amount === null ? "Mora automática restaurada" : "Mora eliminada");
+    } catch (feeError) {
+      setActionError(feeError.message);
+      toast.error(feeError.message);
     }
   }
 
@@ -139,7 +152,7 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
               <p>Por cobrar<span className="block text-base font-semibold text-white">{formatMoney(filteredSummary.toCollect)}</span>{filteredSummary.toCollectCount} cuotas</p>
               <p>Atrasado<span className="block text-base font-semibold text-orange-300">{formatMoney(filteredSummary.overdue)}</span>{filteredSummary.overdueCount} cuotas</p>
             </div>
-            <CollectionSection title={`Resultados (${filteredEntries.length})`} entries={filteredEntries} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} empty="Ninguna cuota coincide con los filtros." />
+            <CollectionSection title={`Resultados (${filteredEntries.length})`} entries={filteredEntries} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} onChangeLateFee={changeLateFee} empty="Ninguna cuota coincide con los filtros." />
           </>
         ) : null}
 
@@ -174,9 +187,9 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
           </div>
         </div>
 
-        <CollectionSection title={selectedDate === today ? "Cobros de hoy" : `Cobros del ${formatDisplayDate(selectedDate)}`} total={dayTotal} entries={selectedEntries} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} empty="No hay cuotas para esta fecha." />
-        <CollectionSection title="Atrasados" entries={overdue} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} empty="No hay cuotas atrasadas." />
-        <CollectionSection title="Próximos 7 días" entries={upcoming} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} empty="No hay vencimientos en los próximos 7 días." />
+        <CollectionSection title={selectedDate === today ? "Cobros de hoy" : `Cobros del ${formatDisplayDate(selectedDate)}`} total={dayTotal} entries={selectedEntries} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} onChangeLateFee={changeLateFee} empty="No hay cuotas para esta fecha." />
+        <CollectionSection title="Atrasados" entries={overdue} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} onChangeLateFee={changeLateFee} empty="No hay cuotas atrasadas." />
+        <CollectionSection title="Próximos 7 días" entries={upcoming} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} onChangeLateFee={changeLateFee} empty="No hay vencimientos en los próximos 7 días." />
         </>)}
 
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -187,7 +200,7 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
     );
   }
 
-  function CollectionSection({ title, total, entries, clients, today, syncing, onToggle, empty }) {
+  function CollectionSection({ title, total, entries, clients, today, syncing, onToggle, onChangeLateFee, empty }) {
     return (
       <section className="space-y-3">
         <div className="flex items-end justify-between">
@@ -214,10 +227,14 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
                     <p className="text-sm font-semibold text-slate-900">{formatMoney(amountDue(entry.installment, today))}</p>
                   </div>
                   {lateFee > 0 && <p className="mt-2 text-sm text-rose-700">Mora {formatMoney(lateFee)}</p>}
-                  <label className={`mt-3 flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-sm ${status === "paid" ? "bg-emerald-400/10 text-emerald-200" : status === "overdue" ? "bg-orange-400/10 text-orange-300" : "bg-white/5 text-slate-300"}`}>
-                    <input type="checkbox" checked={status === "paid"} disabled={syncing} onChange={() => onToggle(entry)} className="h-4 w-4 accent-emerald-400" />
-                    <span className="font-medium">{STATUS_LABEL[status]}</span>
-                  </label>
+                  <CollectionControls
+                    installment={entry.installment}
+                    today={today}
+                    disabled={syncing}
+                    onCollect={(options) => onToggle(entry, options)}
+                    onRevert={() => onToggle(entry)}
+                    onSetLateFee={(amount) => onChangeLateFee(entry, amount)}
+                  />
                 </motion.li>
               );
             })}
