@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { AtSign, MapPin, Pencil, Phone, Plus, Search, StickyNote, Trash2, UserRound, X } from "lucide-react";
+import { AtSign, Mail, MapPin, Pencil, Phone, Plus, Search, StickyNote, Trash2, UserRound, X } from "lucide-react";
 import { useAppState } from "../context/AppStateContext";
 import { clientName, removeClient, saveClient } from "../services/clients";
 
@@ -11,6 +11,7 @@ const EMPTY_FORM = {
   phone: "",
   dni: "",
   address: "",
+  email: "",
   instagram: "",
   notes: "",
 };
@@ -28,7 +29,7 @@ export function ClientsPage() {
       .sort((a, b) => clientName(a).localeCompare(clientName(b), "es"))
       .filter((client) => {
         if (!normalizedQuery) return true;
-        return [clientName(client), client.dni, client.phone, client.address, client.instagram, client.notes]
+        return [clientName(client), client.dni, client.phone, client.address, client.email, client.instagram, client.notes]
           .join(" ")
           .toLowerCase()
           .includes(normalizedQuery);
@@ -50,6 +51,7 @@ export function ClientsPage() {
       phone: client.phone ?? "",
       dni: client.dni ?? "",
       address: client.address ?? "",
+      email: client.email ?? "",
       instagram: client.instagram ?? "",
       notes: client.notes ?? "",
     });
@@ -117,6 +119,7 @@ export function ClientsPage() {
             <Field label="DNI" name="dni" value={form.dni} onChange={updateField} inputMode="numeric" required />
           </div>
           <Field label="Dirección" name="address" value={form.address} onChange={updateField} required />
+          <Field label="Email" name="email" type="email" value={form.email} onChange={updateField} placeholder="correo@ejemplo.com" autoCapitalize="none" />
           <Field label="Instagram" name="instagram" value={form.instagram} onChange={updateField} placeholder="@usuario" autoCapitalize="none" />
           <label className="block space-y-1.5 text-sm">
             <span className="font-medium text-slate-300">Notas</span>
@@ -154,7 +157,8 @@ export function ClientsPage() {
             <div className="mt-4 space-y-2 border-t border-white/10 pt-3 text-sm text-slate-400">
               <p className="flex items-center gap-2"><Phone size={14} className="text-slate-500" />{client.phone}</p>
               <p className="flex items-center gap-2"><MapPin size={14} className="text-slate-500" />{client.address}</p>
-                            {client.instagram && (
+                            {client.email && <p className="flex items-center gap-2"><Mail size={14} className="text-slate-500" /><a href={`mailto:${client.email}`} className="truncate hover:text-emerald-300">{client.email}</a></p>}
+              {client.instagram && (
                               <p className="flex items-center gap-2"><AtSign size={14} className="text-slate-500" />
                                 <a href={`https://instagram.com/${encodeURIComponent(client.instagram)}`} target="_blank" rel="noreferrer" className="hover:text-emerald-300">{client.instagram}</a>
                               </p>

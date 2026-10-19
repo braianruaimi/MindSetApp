@@ -1,5 +1,5 @@
 import { saveClient } from "./clients";
-import { addMonths, daysAfter, parseISODate } from "../utils/dates";
+import { addMonths, daysAfter, formatISODate, parseISODate, todayISODate } from "../utils/dates";
 import { parseRate, roundMoney } from "../utils/money";
 
 export const LATE_FEE_PER_DAY = 10_000;
@@ -93,6 +93,25 @@ export function buildScheduleFromTotal(input) {
   };
 }
 
+export function buildScheduleFromInstallmentAmount(input) {
+  const installmentAmount = roundMoney(input.installmentAmount);
+  const installmentCount = Number(input.installmentCount);
+  if (installmentAmount <= 0) {
+    throw new Error("El monto a cobrar por cuota debe ser mayor a cero.");
+  }
+
+  const schedule = buildScheduleFromTotal({ ...input, totalAmount: installmentAmount * installmentCount });
+  return {
+    ...schedule,
+    installmentAmount,
+    installments: schedule.installments.map((installment) => ({
+      ...installment,
+      interestPart: installmentAmount - installment.capitalPart,
+      amount: installmentAmount,
+    })),
+  };
+}
+
 export function createLoan(database, input) {
   let nextDatabase = database;
   let clientId = String(input.clientId ?? "");
@@ -113,7 +132,10 @@ export function createLoan(database, input) {
     status: "active",
     createdAt: now,
     updatedAt: now,
-    ...(input.totalAmount !== undefined ? buildScheduleFromTotal(input) : buildSchedule(input)),
+    ...(input.installmentAmount !== undefined
+      ? buildScheduleFromInstallmentAmount(input)
+      : input.totalAmount !== undefined ? buildScheduleFromTotal(input) : buildSchedule(input)),
+    startDate: input.startDate || input.firstDueDate,
   };
 
   return {
@@ -188,6 +210,7 @@ function normalizeInstallments(installments) {
     const amount = roundMoney(installment.amount);
     const lateFeeOverride = blankToNull(installment.lateFeeOverride);
     const lateFeeCharged = roundMoney(installment.lateFeeCharged);
+    const paidAt = status === "paid" ? installment.paidAt || new Date().toISOString() : null;
 
     return {
       id: installment.id || crypto.randomUUID(),
@@ -197,7 +220,8 @@ function normalizeInstallments(installments) {
       interestPart,
       amount,
       status,
-      paidAt: status === "paid" ? installment.paidAt || new Date().toISOString() : null,
+      paidAt,
+      paidDate: status === "paid" ? paidDateOf({ ...installment, paidAt }) ?? todayISODate() : null,
       paidAmount: status === "paid" ? roundMoney(installment.paidAmount) : null,
       lateFeeCharged: status === "paid" ? lateFeeCharged : 0,
       lateFeeOverride: status === "paid" ? null : lateFeeOverride,
@@ -241,6 +265,11 @@ export function collectedAmount(loan) {
     .reduce((sum, installment) => sum + roundMoney(installment.paidAmount), 0);
 }
 
+export function collectionDateForInstallment(installment) {
+  if (installment?.status !== "paid") return installment?.dueDate;
+  return paidDateOf(installment) ?? installment?.dueDate;
+}
+
 export function registerCollection(database, loanId, installmentId, collected, today) {
   const loans = database.loans ?? [];
   const loan = loans.find((item) => item.id === loanId);
@@ -254,12 +283,13 @@ export function registerCollection(database, loanId, installmentId, collected, t
   const installments = loan.installments.map((item) => {
     if (item.id !== installmentId) return item;
     if (!collected) {
-      return { ...item, status: "pending", paidAt: null, paidAmount: null, lateFeeCharged: 0 };
+      return { ...item, status: "pending", paidAt: null, paidDate: null, paidAmount: null, lateFeeCharged: 0 };
     }
     return {
       ...item,
       status: "paid",
       paidAt: new Date().toISOString(),
+      paidDate: today,
       paidAmount: roundMoney(item.amount) + lateFee,
       lateFeeCharged: lateFee,
     };
@@ -274,6 +304,13 @@ export function registerCollection(database, loanId, installmentId, collected, t
       updatedAt: new Date().toISOString(),
     } : item)),
   };
+}
+
+function paidDateOf(installment) {
+  if (parseISODate(installment?.paidDate)) return installment.paidDate;
+  if (!installment?.paidAt) return null;
+  const paidAt = new Date(installment.paidAt);
+  return Number.isNaN(paidAt.getTime()) ? null : formatISODate(paidAt);
 }
 
 export function loanEntries(database) {

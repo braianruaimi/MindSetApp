@@ -45,6 +45,7 @@ function normalizeClient(input) {
     phone: clean(input?.phone),
     dni: clean(input?.dni).replace(/[.\s]/g, ""),
     address: clean(input?.address),
+    email: clean(input?.email).toLowerCase(),
     instagram: clean(input?.instagram).replace(/^@+/, ""),
     notes: String(input?.notes ?? "").trim(),
   };
@@ -57,6 +58,9 @@ function normalizeClient(input) {
   }
   if (!client.dni) {
     throw new Error("El DNI es obligatorio.");
+  }
+  if (client.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(client.email)) {
+    throw new Error("El email no es válido.");
   }
   if (!client.address) {
     throw new Error("La dirección es obligatoria.");

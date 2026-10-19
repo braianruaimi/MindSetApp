@@ -10,7 +10,7 @@ import {
   MAX_INSTALLMENTS,
   MIN_INSTALLMENTS,
   amountDue,
-  buildScheduleFromTotal,
+  buildScheduleFromInstallmentAmount,
   createLoan,
   installmentStatus,
   lateFeeForInstallment,
@@ -19,8 +19,10 @@ import {
     removeLoan,
         updateLoan,
   } from "../services/loans";
-import { formatDisplayDate, todayISODate } from "../utils/dates";
+import { addMonths, formatDisplayDate, todayISODate } from "../utils/dates";
 import { formatMoney } from "../utils/money";
+
+const CAPITAL_OPTIONS = [50_000, 100_000, 200_000, 300_000, 400_000, 500_000, 1_000_000];
 
 const EMPTY_CLIENT = {
   firstName: "",
@@ -28,6 +30,7 @@ const EMPTY_CLIENT = {
   phone: "",
   dni: "",
   address: "",
+  email: "",
   instagram: "",
   notes: "",
 };
@@ -188,25 +191,26 @@ function LoanForm({ clients, syncing, onCancel, onSubmit }) {
   const [clientId, setClientId] = useState(clients[0]?.id ?? "");
   const [client, setClient] = useState(EMPTY_CLIENT);
   const [capital, setCapital] = useState("");
-  const [totalAmount, setTotalAmount] = useState("");
+  const [installmentAmount, setInstallmentAmount] = useState("");
   const [installmentCount, setInstallmentCount] = useState("1");
-  const [firstDueDate, setFirstDueDate] = useState(todayISODate());
+  const [startDate, setStartDate] = useState(todayISODate());
+  const [firstDueDate, setFirstDueDate] = useState(() => addMonths(todayISODate(), 1));
   const [error, setError] = useState("");
   const selectedClient = clients.find((item) => item.id === clientId);
 
   const preview = useMemo(() => {
     try {
-      return { schedule: buildScheduleFromTotal({ capital, totalAmount, installmentCount: Number(installmentCount), firstDueDate }), error: "" };
+      return { schedule: buildScheduleFromInstallmentAmount({ capital, installmentAmount, installmentCount: Number(installmentCount), firstDueDate }), error: "" };
     } catch (previewError) {
       return { schedule: null, error: previewError.message };
     }
-  }, [capital, totalAmount, installmentCount, firstDueDate]);
+  }, [capital, installmentAmount, installmentCount, firstDueDate]);
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
     try {
-      await onSubmit({ clientMode, clientId, client, capital, totalAmount, installmentCount: Number(installmentCount), firstDueDate });
+      await onSubmit({ clientMode, clientId, client, capital, installmentAmount, installmentCount: Number(installmentCount), startDate, firstDueDate });
     } catch (submitError) {
       setError(submitError.message);
     }
@@ -240,6 +244,7 @@ function LoanForm({ clients, syncing, onCancel, onSubmit }) {
           <div className="sm:col-span-2">
             <TextField label="Dirección" value={client.address} onChange={(value) => setClient((current) => ({ ...current, address: value }))} required />
           </div>
+                      <TextField label="Email" type="email" value={client.email} onChange={(value) => setClient((current) => ({ ...current, email: value }))} placeholder="correo@ejemplo.com" autoCapitalize="none" />
                       <TextField label="Instagram" value={client.instagram} onChange={(value) => setClient((current) => ({ ...current, instagram: value }))} placeholder="@usuario" autoCapitalize="none" />
                       <label className="block space-y-1.5 text-sm sm:col-span-2">
                         <span className="font-medium text-slate-300">Notas</span>
@@ -249,10 +254,16 @@ function LoanForm({ clients, syncing, onCancel, onSubmit }) {
                   )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <TextField label="Capital entregado" value={capital} onChange={setCapital} inputMode="numeric" required />
-        <TextField label="Monto total a cobrar" value={totalAmount} onChange={setTotalAmount} inputMode="numeric" required />
         <label className="block space-y-1.5 text-sm">
-          <span className="font-medium text-slate-300">Cuotas</span>
+          <span className="font-medium text-slate-300">Capital entregado</span>
+          <select value={capital} onChange={(event) => setCapital(event.target.value)} required className="w-full rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2.5 text-slate-100">
+            <option value="">Seleccionar monto</option>
+            {CAPITAL_OPTIONS.map((amount) => <option key={amount} value={amount}>{formatMoney(amount)}</option>)}
+          </select>
+        </label>
+        <TextField label="Monto total a cobrar por cuota" value={installmentAmount} onChange={setInstallmentAmount} inputMode="numeric" required />
+        <label className="block space-y-1.5 text-sm">
+          <span className="font-medium text-slate-300">Cantidad de cuotas</span>
           <select value={installmentCount} onChange={(event) => setInstallmentCount(event.target.value)} className="w-full rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2.5 text-slate-100">
             {Array.from({ length: MAX_INSTALLMENTS - MIN_INSTALLMENTS + 1 }, (_, index) => {
               const count = index + MIN_INSTALLMENTS;
@@ -260,12 +271,26 @@ function LoanForm({ clients, syncing, onCancel, onSubmit }) {
             })}
           </select>
         </label>
-        <TextField label="Primera cuota" type="date" value={firstDueDate} onChange={setFirstDueDate} required />
+        <TextField
+          label="Fecha de inicio del préstamo"
+          type="date"
+          value={startDate}
+          onChange={(value) => {
+            if (!value) {
+              setStartDate("");
+              setFirstDueDate("");
+              return;
+            }
+            setStartDate(value);
+            setFirstDueDate(addMonths(value, 1));
+          }}
+          required
+        />
+        <TextField label="Fecha de pago de la primera cuota" type="date" value={firstDueDate} onChange={setFirstDueDate} required />
       </div>
-      <p className="rounded-xl border border-sky-300/10 bg-sky-300/5 px-3 py-2.5 text-sm text-sky-100/80">Ingresa el total que se cobrará entre todas las cuotas. El interés se calcula automáticamente para este préstamo y se distribuye en las cuotas.</p>
 
       {preview.schedule && <ScheduleTable installments={preview.schedule.installments} today={todayISODate()} total={preview.schedule.totalAmount} />}
-      {(error || (capital && preview.error)) && <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error || preview.error}</p>}
+      {(error || (capital && installmentAmount && preview.error)) && <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error || preview.error}</p>}
       <div className="flex flex-col gap-3 sm:flex-row">
         <button type="submit" disabled={syncing || !preview.schedule} className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white disabled:opacity-60">{syncing ? "Guardando..." : "Guardar préstamo"}</button>
         <button type="button" onClick={onCancel} className="rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/5">Cancelar</button>

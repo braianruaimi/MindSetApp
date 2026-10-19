@@ -7,6 +7,7 @@ import { useAppState } from "../context/AppStateContext";
 import { clientName } from "../services/clients";
 import {
   amountDue,
+  collectionDateForInstallment,
   installmentStatus,
   lateFeeForInstallment,
   loanEntries,
@@ -31,9 +32,10 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
   const dueByDate = useMemo(() => {
     const grouped = new Map();
     entries.forEach((entry) => {
-      const list = grouped.get(entry.installment.dueDate) ?? [];
+      const date = collectionDateForInstallment(entry.installment);
+      const list = grouped.get(date) ?? [];
       list.push(entry);
-      grouped.set(entry.installment.dueDate, list);
+      grouped.set(date, list);
     });
     return grouped;
   }, [entries]);
@@ -59,6 +61,8 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
         collected ? "collect: cuota" : "revert: cuota",
       );
       if (collected) {
+        setSelectedDate(today);
+        setVisibleMonth(monthOf(today));
         setBurst((current) => current + 1);
         toast.success("Cobro registrado", { description: "Guardado en este dispositivo" });
       } else {
@@ -149,6 +153,7 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
                     <div>
                       <p className="font-semibold text-white">{client ? clientName(client) : "Cliente eliminado"}</p>
                       <p className="mt-1 text-sm text-slate-600">Cuota {entry.installment.number}/{entry.loan.installmentCount} · {formatDisplayDate(entry.installment.dueDate)}</p>
+                      {status === "paid" && <p className="mt-1 text-xs text-emerald-300">Cobrada el {formatDisplayDate(collectionDateForInstallment(entry.installment))}</p>}
                       <p className="mt-1 text-sm text-slate-500">Saldo del préstamo: {formatMoney(outstandingBalance(entry.loan, today))}</p>
                     </div>
                     <p className="text-sm font-semibold text-slate-900">{formatMoney(amountDue(entry.installment, today))}</p>

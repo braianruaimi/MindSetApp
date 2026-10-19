@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { buildSchedule, buildScheduleFromTotal, lateFeeForInstallment, registerCollection } from "./loans";
+import { buildSchedule, buildScheduleFromInstallmentAmount, buildScheduleFromTotal, collectionDateForInstallment, lateFeeForInstallment, registerCollection } from "./loans";
 
 beforeEach(() => {
   vi.stubGlobal("crypto", {
@@ -50,6 +50,21 @@ describe("loan schedules and collections", () => {
     ]);
   });
 
+  it("builds fixed installments from the amount charged per installment", () => {
+    const schedule = buildScheduleFromInstallmentAmount({
+      capital: 100_000,
+      installmentAmount: 60_000,
+      installmentCount: 3,
+      firstDueDate: "2025-02-10",
+    });
+
+    expect(schedule.installments.map(({ amount }) => amount)).toEqual([60_000, 60_000, 60_000]);
+    expect(schedule.totalAmount).toBe(180_000);
+    expect(schedule.totalInterest).toBe(80_000);
+    expect(schedule.installments.reduce((sum, item) => sum + item.capitalPart + item.interestPart, 0)).toBe(180_000);
+    expect(schedule.installments.map(({ dueDate }) => dueDate)).toEqual(["2025-02-10", "2025-03-10", "2025-04-10"]);
+  });
+
   it("rejects a total amount below the capital delivered", () => {
     expect(() => buildScheduleFromTotal({
       capital: 100_000,
@@ -65,6 +80,18 @@ describe("loan schedules and collections", () => {
     expect(lateFeeForInstallment({ ...pending, status: "paid", lateFeeCharged: 20_000 }, "2025-03-01")).toBe(20_000);
   });
 
+  it("uses the actual collection date for paid installments and the due date while pending", () => {
+    expect(collectionDateForInstallment({
+      status: "paid",
+      dueDate: "2025-02-10",
+      paidDate: "2025-02-13",
+    })).toBe("2025-02-13");
+    expect(collectionDateForInstallment({
+      status: "pending",
+      dueDate: "2025-02-10",
+    })).toBe("2025-02-10");
+  });
+
   it("registers and reverses a collection with its late fee", () => {
     const database = {
       clients: [],
@@ -78,6 +105,7 @@ describe("loan schedules and collections", () => {
     const collected = registerCollection(database, "loan-1", "installment-1", true, "2025-02-12");
     expect(collected.loans[0].installments[0]).toMatchObject({
       status: "paid",
+      paidDate: "2025-02-12",
       paidAmount: 40_000,
       lateFeeCharged: 20_000,
     });
@@ -85,6 +113,7 @@ describe("loan schedules and collections", () => {
     expect(reverted.loans[0].installments[0]).toMatchObject({
       status: "pending",
       paidAmount: null,
+      paidDate: null,
       lateFeeCharged: 0,
     });
   });
