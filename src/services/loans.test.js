@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { buildSchedule, lateFeeForInstallment, registerCollection } from "./loans";
+import { buildSchedule, buildScheduleFromTotal, lateFeeForInstallment, registerCollection } from "./loans";
 
 beforeEach(() => {
   vi.stubGlobal("crypto", {
@@ -30,6 +30,33 @@ describe("loan schedules and collections", () => {
       installmentCount: 7,
       firstDueDate: "2025-01-01",
     })).toThrow("de 1 a 6");
+  });
+
+  it("derives the interest from the total amount and distributes rounding exactly", () => {
+    const schedule = buildScheduleFromTotal({
+      capital: 100_000,
+      totalAmount: 115_001,
+      installmentCount: 3,
+      firstDueDate: "2025-01-31",
+    });
+
+    expect(schedule.interestRate).toBeCloseTo(5.0003333333);
+    expect(schedule.totalInterest).toBe(15_001);
+    expect(schedule.totalAmount).toBe(115_001);
+    expect(schedule.installments.map(({ interestPart, amount }) => [interestPart, amount])).toEqual([
+      [5_000, 38_333],
+      [5_000, 38_333],
+      [5_001, 38_335],
+    ]);
+  });
+
+  it("rejects a total amount below the capital delivered", () => {
+    expect(() => buildScheduleFromTotal({
+      capital: 100_000,
+      totalAmount: 99_999,
+      installmentCount: 2,
+      firstDueDate: "2025-01-01",
+    })).toThrow("igual o mayor al capital entregado");
   });
 
   it("adds 10,000 per late day and keeps paid fees fixed", () => {

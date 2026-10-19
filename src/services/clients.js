@@ -45,6 +45,8 @@ function normalizeClient(input) {
     phone: clean(input?.phone),
     dni: clean(input?.dni).replace(/[.\s]/g, ""),
     address: clean(input?.address),
+    instagram: clean(input?.instagram).replace(/^@+/, ""),
+    notes: String(input?.notes ?? "").trim(),
   };
 
   if (!client.firstName || !client.lastName) {

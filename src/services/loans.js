@@ -8,7 +8,7 @@ export const MAX_INSTALLMENTS = 6;
 
 export function buildSchedule(input) {
   const capital = roundMoney(input.capital);
-    const interestRate = parseRate(input.interestRate);
+  const interestRate = parseRate(input.interestRate);
   const installmentCount = Number(input.installmentCount);
   const firstDueDate = String(input.firstDueDate ?? "");
 
@@ -60,6 +60,39 @@ export function buildSchedule(input) {
   };
 }
 
+export function buildScheduleFromTotal(input) {
+  const capital = roundMoney(input.capital);
+  const totalAmount = roundMoney(input.totalAmount);
+  const installmentCount = Number(input.installmentCount);
+
+  if (totalAmount < capital) {
+    throw new Error("El monto a cobrar debe ser igual o mayor al capital entregado.");
+  }
+
+  const totalInterest = totalAmount - capital;
+  const interestRate = capital > 0 && installmentCount > 0
+    ? (totalInterest / installmentCount / capital) * 100
+    : 0;
+  const schedule = buildSchedule({ ...input, interestRate });
+  const interestBase = Math.floor(totalInterest / installmentCount);
+  const interestRemainder = totalInterest - interestBase * installmentCount;
+  const installments = schedule.installments.map((installment, index) => {
+    const interestPart = interestBase + (index === installmentCount - 1 ? interestRemainder : 0);
+    return {
+      ...installment,
+      interestPart,
+      amount: installment.capitalPart + interestPart,
+    };
+  });
+
+  return {
+    ...schedule,
+    totalInterest,
+    totalAmount,
+    installments,
+  };
+}
+
 export function createLoan(database, input) {
   let nextDatabase = database;
   let clientId = String(input.clientId ?? "");
@@ -80,7 +113,7 @@ export function createLoan(database, input) {
     status: "active",
     createdAt: now,
     updatedAt: now,
-    ...buildSchedule(input),
+    ...(input.totalAmount !== undefined ? buildScheduleFromTotal(input) : buildSchedule(input)),
   };
 
   return {

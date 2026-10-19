@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Pencil, Phone, Plus, Search, Trash2, UserRound, X } from "lucide-react";
+import { AtSign, MapPin, Pencil, Phone, Plus, Search, StickyNote, Trash2, UserRound, X } from "lucide-react";
 import { useAppState } from "../context/AppStateContext";
 import { clientName, removeClient, saveClient } from "../services/clients";
 
@@ -11,6 +11,8 @@ const EMPTY_FORM = {
   phone: "",
   dni: "",
   address: "",
+  instagram: "",
+  notes: "",
 };
 
 export function ClientsPage() {
@@ -26,7 +28,7 @@ export function ClientsPage() {
       .sort((a, b) => clientName(a).localeCompare(clientName(b), "es"))
       .filter((client) => {
         if (!normalizedQuery) return true;
-        return [clientName(client), client.dni, client.phone, client.address]
+        return [clientName(client), client.dni, client.phone, client.address, client.instagram, client.notes]
           .join(" ")
           .toLowerCase()
           .includes(normalizedQuery);
@@ -48,6 +50,8 @@ export function ClientsPage() {
       phone: client.phone ?? "",
       dni: client.dni ?? "",
       address: client.address ?? "",
+      instagram: client.instagram ?? "",
+      notes: client.notes ?? "",
     });
   }
 
@@ -113,6 +117,11 @@ export function ClientsPage() {
             <Field label="DNI" name="dni" value={form.dni} onChange={updateField} inputMode="numeric" required />
           </div>
           <Field label="Dirección" name="address" value={form.address} onChange={updateField} required />
+          <Field label="Instagram" name="instagram" value={form.instagram} onChange={updateField} placeholder="@usuario" autoCapitalize="none" />
+          <label className="block space-y-1.5 text-sm">
+            <span className="font-medium text-slate-300">Notas</span>
+            <textarea name="notes" value={form.notes} onChange={updateField} rows={3} className="w-full rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2.5 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-emerald-400/50 focus:ring-2 focus:ring-emerald-400/10" />
+          </label>
           {error && <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error}</p>}
           <div className="flex flex-col gap-3 sm:flex-row">
             <button type="submit" className="flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110">
@@ -145,7 +154,13 @@ export function ClientsPage() {
             <div className="mt-4 space-y-2 border-t border-white/10 pt-3 text-sm text-slate-400">
               <p className="flex items-center gap-2"><Phone size={14} className="text-slate-500" />{client.phone}</p>
               <p className="flex items-center gap-2"><MapPin size={14} className="text-slate-500" />{client.address}</p>
-            </div>
+                            {client.instagram && (
+                              <p className="flex items-center gap-2"><AtSign size={14} className="text-slate-500" />
+                                <a href={`https://instagram.com/${encodeURIComponent(client.instagram)}`} target="_blank" rel="noreferrer" className="hover:text-emerald-300">{client.instagram}</a>
+                              </p>
+                            )}
+                            {client.notes && <p className="flex items-start gap-2 whitespace-pre-line"><StickyNote size={14} className="mt-0.5 shrink-0 text-slate-500" />{client.notes}</p>}
+                          </div>
             <div className="mt-3 min-h-8">
               {pendingDeleteId === client.id ? (
                 <div className="flex items-center gap-3 text-sm">

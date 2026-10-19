@@ -10,7 +10,7 @@ import {
   MAX_INSTALLMENTS,
   MIN_INSTALLMENTS,
   amountDue,
-  buildSchedule,
+  buildScheduleFromTotal,
   createLoan,
   installmentStatus,
   lateFeeForInstallment,
@@ -28,6 +28,8 @@ const EMPTY_CLIENT = {
   phone: "",
   dni: "",
   address: "",
+  instagram: "",
+  notes: "",
 };
 
 const STATUS_LABEL = {
@@ -97,7 +99,7 @@ export function LoansPage() {
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/80">Cartera activa</p>
           <h1 className="flex items-center gap-2 text-2xl font-semibold text-white"><Landmark size={22} className="text-emerald-300" />Préstamos</h1>
-          <p className="mt-1 text-sm text-slate-400">Tasa mensual sobre el capital · mora {formatMoney(LATE_FEE_PER_DAY)} por día.</p>
+          <p className="mt-1 text-sm text-slate-400">Interés calculado según el monto total pactado · mora {formatMoney(LATE_FEE_PER_DAY)} por día.</p>
         </div>
         <button type="button" onClick={() => { setError(""); setCreating(true); setEditing(false); setSelectedId(""); }} className="flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-950/30 transition hover:brightness-110">
           <CirclePlus size={18} /><span className="hidden sm:inline">Nuevo préstamo</span><span className="sm:hidden">Nuevo</span>
@@ -150,7 +152,7 @@ export function LoansPage() {
                 <span className="flex items-start justify-between gap-3">
                   <span className="min-w-0">
                     <span className="block truncate font-semibold text-white">{client ? clientName(client) : "Cliente eliminado"}</span>
-                    <span className="mt-1 block text-sm text-slate-400">{formatMoney(loan.capital)} · {loan.installmentCount} cuotas · {loan.interestRate}% mensual</span>
+                    <span className="mt-1 block text-sm text-slate-400">{formatMoney(loan.capital)} entregados · {loan.installmentCount} cuotas · total {formatMoney(loan.totalAmount)}</span>
                   </span>
                   <span className="shrink-0 text-right">
                     <span className="block text-[10px] uppercase tracking-wide text-slate-500">Saldo</span>
@@ -186,7 +188,7 @@ function LoanForm({ clients, syncing, onCancel, onSubmit }) {
   const [clientId, setClientId] = useState(clients[0]?.id ?? "");
   const [client, setClient] = useState(EMPTY_CLIENT);
   const [capital, setCapital] = useState("");
-  const [interestRate, setInterestRate] = useState("");
+  const [totalAmount, setTotalAmount] = useState("");
   const [installmentCount, setInstallmentCount] = useState("1");
   const [firstDueDate, setFirstDueDate] = useState(todayISODate());
   const [error, setError] = useState("");
@@ -194,17 +196,17 @@ function LoanForm({ clients, syncing, onCancel, onSubmit }) {
 
   const preview = useMemo(() => {
     try {
-      return { schedule: buildSchedule({ capital, interestRate, installmentCount: Number(installmentCount), firstDueDate }), error: "" };
+      return { schedule: buildScheduleFromTotal({ capital, totalAmount, installmentCount: Number(installmentCount), firstDueDate }), error: "" };
     } catch (previewError) {
       return { schedule: null, error: previewError.message };
     }
-  }, [capital, interestRate, installmentCount, firstDueDate]);
+  }, [capital, totalAmount, installmentCount, firstDueDate]);
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
     try {
-      await onSubmit({ clientMode, clientId, client, capital, interestRate, installmentCount: Number(installmentCount), firstDueDate });
+      await onSubmit({ clientMode, clientId, client, capital, totalAmount, installmentCount: Number(installmentCount), firstDueDate });
     } catch (submitError) {
       setError(submitError.message);
     }
@@ -238,12 +240,17 @@ function LoanForm({ clients, syncing, onCancel, onSubmit }) {
           <div className="sm:col-span-2">
             <TextField label="Dirección" value={client.address} onChange={(value) => setClient((current) => ({ ...current, address: value }))} required />
           </div>
-        </div>
-      )}
+                      <TextField label="Instagram" value={client.instagram} onChange={(value) => setClient((current) => ({ ...current, instagram: value }))} placeholder="@usuario" autoCapitalize="none" />
+                      <label className="block space-y-1.5 text-sm sm:col-span-2">
+                        <span className="font-medium text-slate-300">Notas</span>
+                        <textarea value={client.notes} onChange={(event) => setClient((current) => ({ ...current, notes: event.target.value }))} rows={3} className="w-full rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2.5 text-slate-100 outline-none transition focus:border-emerald-400/50 focus:ring-2 focus:ring-emerald-400/10" />
+                      </label>
+                    </div>
+                  )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <TextField label="Capital" value={capital} onChange={setCapital} inputMode="numeric" required />
-        <TextField label="Tasa mensual %" value={interestRate} onChange={setInterestRate} inputMode="decimal" required />
+        <TextField label="Capital entregado" value={capital} onChange={setCapital} inputMode="numeric" required />
+        <TextField label="Monto total a cobrar" value={totalAmount} onChange={setTotalAmount} inputMode="numeric" required />
         <label className="block space-y-1.5 text-sm">
           <span className="font-medium text-slate-300">Cuotas</span>
           <select value={installmentCount} onChange={(event) => setInstallmentCount(event.target.value)} className="w-full rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2.5 text-slate-100">
@@ -255,7 +262,7 @@ function LoanForm({ clients, syncing, onCancel, onSubmit }) {
         </label>
         <TextField label="Primera cuota" type="date" value={firstDueDate} onChange={setFirstDueDate} required />
       </div>
-      <p className="rounded-xl border border-sky-300/10 bg-sky-300/5 px-3 py-2.5 text-sm text-sky-100/80">Frecuencia mensual. Cada cuota suma capital prorrateado más el interés del capital original.</p>
+      <p className="rounded-xl border border-sky-300/10 bg-sky-300/5 px-3 py-2.5 text-sm text-sky-100/80">Ingresa el total que se cobrará entre todas las cuotas. El interés se calcula automáticamente para este préstamo y se distribuye en las cuotas.</p>
 
       {preview.schedule && <ScheduleTable installments={preview.schedule.installments} today={todayISODate()} total={preview.schedule.totalAmount} />}
       {(error || (capital && preview.error)) && <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error || preview.error}</p>}
@@ -271,9 +278,9 @@ function LoanDetail({ loan, client, today, syncing, pendingDelete, onBack, onAsk
   return (
     <article className="glass space-y-4 rounded-3xl p-5 sm:p-6">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-lg font-semibold text-white">{client ? clientName(client) : "Cliente eliminado"}</h2>
-          <p className="mt-1 text-sm text-slate-400">{formatMoney(loan.capital)} al {loan.interestRate}% · saldo {formatMoney(outstandingBalance(loan, today))}</p>
+          <p className="mt-1 text-sm text-slate-400">Saldo pendiente <span className="font-semibold text-white">{formatMoney(outstandingBalance(loan, today))}</span></p>
         </div>
         <div className="flex gap-3">
           <button type="button" onClick={onEdit} className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-300"><Pencil size={14} />Editar</button>
@@ -294,55 +301,98 @@ function LoanDetail({ loan, client, today, syncing, pendingDelete, onBack, onAsk
 }
 
 function ScheduleTable({ installments, today, total, syncing = false, onCollect }) {
+  const capital = installments.reduce((sum, installment) => sum + Number(installment.capitalPart || 0), 0);
+  const agreedTotal = total ?? installments.reduce((sum, installment) => sum + Number(installment.amount || 0), 0);
+  const returnAmount = agreedTotal - capital;
+  const returnRate = capital > 0 ? (returnAmount / capital) * 100 : 0;
+
   return (
-    <div className="glass overflow-x-auto rounded-2xl p-3 sm:p-4">
-      <table className="w-full min-w-[36rem] text-left text-sm">
-        <thead className="text-xs uppercase tracking-wide text-slate-500">
-          <tr>
-            <th className="py-2 pr-3 font-medium">Cuota</th>
-            <th className="py-2 pr-3 font-medium">Vence</th>
-            <th className="py-2 pr-3 font-medium">Capital</th>
-            <th className="py-2 pr-3 font-medium">Interés</th>
-            <th className="py-2 pr-3 font-medium">Mora</th>
-            <th className="py-2 pr-3 font-medium">Total</th>
-            {onCollect && <th className="py-2 font-medium">Cobro</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {installments.map((installment) => {
-            const status = installmentStatus(installment, today);
-            const lateFee = lateFeeForInstallment(installment, today);
-            return (
-              <tr key={installment.id ?? installment.number} className="border-t border-white/5 text-slate-300">
-                <td className="py-2 pr-3">
-                  {installment.number}
-                  <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${status === "overdue" ? "bg-orange-400/10 text-orange-300" : status === "paid" ? "bg-emerald-400/10 text-emerald-200" : "bg-white/5 text-slate-400"}`}>{STATUS_LABEL[status]}</span>
-                </td>
-                <td className="py-2 pr-3">{formatDisplayDate(installment.dueDate)}</td>
-                <td className="py-2 pr-3">{formatMoney(installment.capitalPart)}</td>
-                <td className="py-2 pr-3">{formatMoney(installment.interestPart)}</td>
-                <td className="py-2 pr-3">{formatMoney(lateFee)}</td>
-                <td className="py-2 pr-3">{formatMoney(amountDue(installment, today))}</td>
-                {onCollect && (
-                  <td className="py-2">
-                    <button type="button" disabled={syncing} onClick={() => onCollect(installment)} className="font-semibold text-emerald-300 transition hover:text-emerald-200 disabled:opacity-60">
-                      {installment.status === "paid" ? "Pendiente" : "Cobrar"}
-                    </button>
-                  </td>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-        <tfoot>
-          <tr className="border-t border-white/10 font-semibold text-white">
-            <td className="py-2" colSpan={onCollect ? 6 : 5}>Total pactado sin mora</td>
-            <td className="py-2">{formatMoney(total)}</td>
-          </tr>
-        </tfoot>
-      </table>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+        <SummaryMetric label="Capital entregado" value={formatMoney(capital)} />
+        <div className="rounded-2xl border border-emerald-300/15 bg-gradient-to-br from-emerald-400/10 to-teal-400/[0.03] p-3 shadow-lg shadow-emerald-950/10 sm:p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-200/70">Retorno total</p>
+          <p className="mt-1 text-base font-semibold text-emerald-200 sm:text-lg">{formatMoney(returnAmount)}</p>
+          <p className="mt-0.5 text-xs text-emerald-300">{returnRate > 0 ? "+" : ""}{formatPercentage(returnRate)}% sobre el capital</p>
+        </div>
+        <div className="col-span-2 rounded-2xl border border-sky-300/15 bg-gradient-to-br from-sky-400/10 to-indigo-400/[0.03] p-3 shadow-lg shadow-sky-950/10 sm:col-span-1 sm:p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-200/70">Total pactado</p>
+          <p className="mt-1 text-base font-semibold text-white sm:text-lg">{formatMoney(agreedTotal)}</p>
+          <p className="mt-0.5 text-xs text-sky-200/70">Sin incluir mora</p>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {installments.map((installment) => {
+          const status = installmentStatus(installment, today);
+          const lateFee = lateFeeForInstallment(installment, today);
+          const statusStyles = status === "overdue"
+            ? "border-orange-300/20 bg-orange-400/10 text-orange-200"
+            : status === "paid"
+              ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-200"
+              : "border-white/10 bg-white/5 text-slate-300";
+          const accentStyles = status === "overdue"
+            ? "border-l-orange-400"
+            : status === "paid"
+              ? "border-l-emerald-400"
+              : "border-l-sky-400";
+
+          return (
+            <article key={installment.id ?? installment.number} className={`rounded-2xl border border-white/[0.07] border-l-2 ${accentStyles} bg-gradient-to-br from-white/[0.045] to-white/[0.015] p-3.5 shadow-lg shadow-slate-950/10 sm:p-4`}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Cuota {String(installment.number).padStart(2, "0")}{installments.length ? ` / ${String(installments.length).padStart(2, "0")}` : ""}</p>
+                  <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-slate-200"><CalendarDays size={14} className="text-slate-500" />{formatDisplayDate(installment.dueDate)}</p>
+                </div>
+                <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusStyles}`}>{STATUS_LABEL[status]}</span>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <InstallmentMetric label="Capital" value={formatMoney(installment.capitalPart)} />
+                <InstallmentMetric label="Interés" value={formatMoney(installment.interestPart)} />
+                <InstallmentMetric label="Mora" value={formatMoney(lateFee)} tone={lateFee > 0 ? "warning" : undefined} />
+                <InstallmentMetric label="Total cuota" value={formatMoney(amountDue(installment, today))} tone="bright" />
+              </div>
+
+              {onCollect && (
+                <button
+                  type="button"
+                  disabled={syncing}
+                  onClick={() => onCollect(installment)}
+                  className={`mt-3 w-full rounded-xl border px-3 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${installment.status === "paid" ? "border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]" : "border-emerald-300/15 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15"}`}
+                >
+                  {installment.status === "paid" ? "Marcar como pendiente" : "Registrar cobro"}
+                </button>
+              )}
+            </article>
+          );
+        })}
+      </div>
     </div>
   );
+}
+
+function SummaryMetric({ label, value }) {
+  return (
+    <div className="rounded-2xl border border-white/[0.07] bg-slate-950/30 p-3 sm:p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="mt-1 text-base font-semibold text-white sm:text-lg">{value}</p>
+    </div>
+  );
+}
+
+function InstallmentMetric({ label, value, tone }) {
+  const valueStyles = tone === "warning" ? "text-orange-300" : tone === "bright" ? "text-white" : "text-slate-200";
+  return (
+    <div className="min-w-0 rounded-xl border border-white/[0.05] bg-slate-950/30 px-2.5 py-2">
+      <p className="text-[9px] font-medium uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <p className={`mt-1 truncate text-xs font-semibold sm:text-sm ${valueStyles}`}>{value}</p>
+    </div>
+  );
+}
+
+function formatPercentage(value) {
+  return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format(value);
 }
 
 function TextField({ label, onChange, ...props }) {
