@@ -18,3 +18,15 @@ export function DashboardSkeleton() {
     </div>
   );
 }
+
+export function PageSkeleton() {
+  return (
+    <div className="mx-auto w-full max-w-2xl space-y-4" aria-busy="true" aria-label="Cargando pantalla">
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="h-8 w-44" />
+      <Skeleton className="h-14 w-full" />
+      <Skeleton className="h-28 w-full" />
+      <Skeleton className="h-28 w-full" />
+    </div>
+  );
+}

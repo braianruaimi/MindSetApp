@@ -1,4 +1,6 @@
-import { normalizeDatabase } from "./storage";
+import { normalizeDatabase, validateDatabase } from "./storage";
+import { decryptLocalValue, encryptLocalValue, isEncryptedLocalValue } from "./localEncryption";
+import { encryptBackupTextWithPin } from "./backupCrypto";
 
 export const BACKUP_EVENT = "mindset:data-mutated";
 const DB_NAME = "mindset-backups";
@@ -11,18 +13,21 @@ export function emitMutation(state, message) {
   window.dispatchEvent(new CustomEvent(BACKUP_EVENT, { detail: { state, message } }));
 }
 
-export async function saveSnapshot(state, message = "cambio") {
+export async function saveSnapshot(state, message, key) {
   const normalized = normalizeDatabase(state);
   const signature = JSON.stringify(normalized);
   if (signature === lastSignature) return null;
+  if (!key) throw new Error("No hay una clave de cifrado activa para guardar el historial.");
 
   const snapshot = {
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
-    message: String(message || "cambio"),
-    clients: normalized.clients.length,
-    loans: normalized.loans.length,
-    state: normalized,
+    payload: await encryptLocalValue({
+      message: String(message || "cambio"),
+      clients: normalized.clients.length,
+      loans: normalized.loans.length,
+      state: normalized,
+    }, key),
   };
   const db = await openDatabase();
   await requestToPromise(db.transaction(STORE, "readwrite").objectStore(STORE).add(snapshot));
@@ -31,10 +36,47 @@ export async function saveSnapshot(state, message = "cambio") {
   return snapshot;
 }
 
-export async function listSnapshots() {
+export async function listSnapshots(key) {
+  if (!key) throw new Error("No hay una clave de cifrado activa para leer el historial local.");
   const db = await openDatabase();
   const snapshots = await requestToPromise(db.transaction(STORE, "readonly").objectStore(STORE).getAll());
-  return snapshots.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const decrypted = await Promise.all(snapshots.map(async (snapshot) => {
+    if (!isEncryptedLocalValue(snapshot.payload)) {
+      throw new Error("El historial local todavía no está cifrado.");
+    }
+    const payload = await decryptLocalValue(snapshot.payload, key);
+    return { id: snapshot.id, createdAt: snapshot.createdAt, ...payload };
+  }));
+  return decrypted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function migrateSnapshots(key) {
+  const db = await openDatabase();
+  const snapshots = await requestToPromise(db.transaction(STORE, "readonly").objectStore(STORE).getAll());
+  const migrated = await Promise.all(snapshots.map(async (snapshot) => {
+    if (isEncryptedLocalValue(snapshot.payload)) {
+      await decryptLocalValue(snapshot.payload, key);
+      return snapshot;
+    }
+    const state = isEncryptedLocalValue(snapshot.state)
+      ? await decryptLocalValue(snapshot.state, key)
+      : snapshot.state;
+    return {
+      id: snapshot.id,
+      createdAt: snapshot.createdAt,
+      payload: await encryptLocalValue({
+        message: snapshot.message || "cambio",
+        clients: snapshot.clients ?? state?.clients?.length ?? 0,
+        loans: snapshot.loans ?? state?.loans?.length ?? 0,
+        state,
+      }, key),
+    };
+  }));
+  if (migrated.every((snapshot, index) => snapshot === snapshots[index])) return;
+
+  const transaction = db.transaction(STORE, "readwrite");
+  const store = transaction.objectStore(STORE);
+  await Promise.all(migrated.map((snapshot) => requestToPromise(store.put(snapshot))));
 }
 
 export async function deleteSnapshot(id) {
@@ -42,15 +84,20 @@ export async function deleteSnapshot(id) {
   await requestToPromise(db.transaction(STORE, "readwrite").objectStore(STORE).delete(id));
 }
 
-export function downloadSnapshot(snapshot) {
+export async function downloadSnapshot(snapshot, pin) {
   const stamp = String(snapshot.createdAt ?? new Date().toISOString()).slice(0, 19).replace(/[:T]/g, "-");
-  const blob = new Blob([JSON.stringify(snapshot.state, null, 2)], { type: "application/json" });
+  const text = await encryptBackupTextWithPin(snapshot.state, pin);
+  downloadBackupText(text, `mindset-backup-${stamp}-cifrado.json`);
+}
+
+export function downloadBackupText(text, filename) {
+  const blob = new Blob([text], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `mindset-backup-${stamp}.json`;
+  link.download = filename;
   link.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function parseBackupText(text) {
@@ -62,10 +109,11 @@ export function parseBackupText(text) {
   }
 
   const state = parsed?.state && typeof parsed.state === "object" ? parsed.state : parsed;
-  if (!state || typeof state !== "object" || (!Object.hasOwn(state, "clients") && !Object.hasOwn(state, "loans"))) {
-    throw new Error("El archivo no tiene el formato de la base de MindSet.");
+  try {
+    return validateDatabase(state);
+  } catch (error) {
+    throw new Error(`El archivo no tiene una base de MindSet válida. ${error.message}`);
   }
-  return normalizeDatabase(state);
 }
 
 function openDatabase() {

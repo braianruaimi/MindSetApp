@@ -43,7 +43,7 @@ export function buildReport(database, today) {
   };
 }
 
-// Interés acumulado por mes de vencimiento: proyectado (todas las cuotas) vs real (cuotas cobradas).
+// Compara el interés programado con el interés efectivamente cobrado; la mora no se mezcla con el interés.
 export function monthlyProjection(database) {
   const months = new Map();
   for (const loan of database.loans ?? []) {
@@ -52,7 +52,7 @@ export function monthlyProjection(database) {
       const entry = months.get(key) ?? { key, projected: 0, real: 0 };
       entry.projected += roundMoney(installment.interestPart);
       if (installment.status === "paid") {
-        entry.real += roundMoney(installment.interestPart) + roundMoney(installment.lateFeeCharged);
+        entry.real += roundMoney(installment.interestPart);
       }
       months.set(key, entry);
     }

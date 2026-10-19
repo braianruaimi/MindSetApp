@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { MapPin, Pencil, Phone, Plus, Search, Trash2, UserRound, X } from "lucide-react";
 import { useAppState } from "../context/AppStateContext";
 import { clientName, removeClient, saveClient } from "../services/clients";
 
@@ -74,26 +76,36 @@ export function ClientsPage() {
 
   return (
     <section className="mx-auto w-full max-w-2xl space-y-5">
-      <header className="flex items-start justify-between gap-3">
+      <header className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Clientes</h1>
-          <p className="mt-1 text-sm text-slate-600">{database.clients.length} registrados</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/80">Cartera</p>
+          <h1 className="text-2xl font-semibold text-white">Clientes</h1>
+          <p className="mt-1 text-sm text-slate-400">{database.clients.length} registrados</p>
         </div>
-        <button type="button" onClick={openCreate} className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white">
-          Nuevo
+        <button type="button" onClick={openCreate} className="flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-950/30 transition hover:brightness-110">
+          <Plus size={18} /> <span className="hidden sm:inline">Nuevo cliente</span><span className="sm:hidden">Nuevo</span>
         </button>
       </header>
 
-      <input
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder="Buscar por nombre, DNI o teléfono"
-        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm outline-none ring-teal-700 focus:ring-2"
-      />
+      <label className="relative block">
+        <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Buscar por nombre, DNI o teléfono"
+          className="w-full rounded-2xl border border-white/10 bg-slate-900/50 py-3 pl-11 pr-4 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-emerald-400/50 focus:ring-2 focus:ring-emerald-400/10"
+        />
+      </label>
 
       {form && (
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="font-medium text-slate-900">{form.id ? "Editar cliente" : "Nuevo cliente"}</h2>
+        <form onSubmit={handleSubmit} className="glass space-y-4 rounded-3xl p-5 sm:p-6">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-300"><UserRound size={20} /></span>
+            <div>
+              <h2 className="font-semibold text-white">{form.id ? "Editar cliente" : "Nuevo cliente"}</h2>
+              <p className="text-xs text-slate-400">Completa los datos de contacto e identificación</p>
+            </div>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Nombre" name="firstName" value={form.firstName} onChange={updateField} required />
             <Field label="Apellido" name="lastName" value={form.lastName} onChange={updateField} required />
@@ -101,57 +113,66 @@ export function ClientsPage() {
             <Field label="DNI" name="dni" value={form.dni} onChange={updateField} inputMode="numeric" required />
           </div>
           <Field label="Dirección" name="address" value={form.address} onChange={updateField} required />
-          {error && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+          {error && <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error}</p>}
           <div className="flex flex-col gap-3 sm:flex-row">
-            <button type="submit" className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white">
-              Guardar
+            <button type="submit" className="flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110">
+              <UserRound size={16} /> Guardar cliente
             </button>
-            <button type="button" onClick={() => setForm(null)} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700">
-              Cancelar
+            <button type="button" onClick={() => setForm(null)} className="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/5">
+              <X size={16} /> Cancelar
             </button>
           </div>
         </form>
       )}
 
-      {!form && error && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+      {!form && error && <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error}</p>}
 
-      <ul className="space-y-3">
+      <ul className="grid gap-3 sm:grid-cols-2">
         {clients.map((client) => (
-          <li key={client.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-medium text-slate-900">{clientName(client)}</p>
-                <p className="mt-1 text-sm text-slate-600">DNI {client.dni} · {client.phone}</p>
-                <p className="mt-1 text-sm text-slate-500">{client.address}</p>
+          <motion.li key={client.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -2 }} className="glass rounded-2xl p-4 transition">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-400/10 text-sm font-semibold uppercase text-sky-300">
+                {`${client.firstName?.[0] ?? ""}${client.lastName?.[0] ?? ""}`}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold text-white">{clientName(client)}</p>
+                <p className="mt-1 text-xs text-slate-400">DNI {client.dni}</p>
               </div>
-              <button type="button" onClick={() => openEdit(client)} className="text-sm font-medium text-teal-800">
-                Editar
+              <button type="button" aria-label={`Editar ${clientName(client)}`} onClick={() => openEdit(client)} className="rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-emerald-300">
+                <Pencil size={16} />
               </button>
             </div>
-            <div className="mt-3">
+            <div className="mt-4 space-y-2 border-t border-white/10 pt-3 text-sm text-slate-400">
+              <p className="flex items-center gap-2"><Phone size={14} className="text-slate-500" />{client.phone}</p>
+              <p className="flex items-center gap-2"><MapPin size={14} className="text-slate-500" />{client.address}</p>
+            </div>
+            <div className="mt-3 min-h-8">
               {pendingDeleteId === client.id ? (
-                <div className="flex gap-3 text-sm">
-                  <button type="button" onClick={() => handleDelete(client.id)} className="font-medium text-rose-700">
+                <div className="flex items-center gap-3 text-sm">
+                  <button type="button" onClick={() => handleDelete(client.id)} className="font-medium text-rose-300 hover:text-rose-200">
                     Confirmar eliminación
                   </button>
-                  <button type="button" onClick={() => setPendingDeleteId("")} className="text-slate-500">
-                    Cancelar
+                  <button type="button" onClick={() => setPendingDeleteId("")} className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-300">
+                    <X size={14} /> Cancelar
                   </button>
                 </div>
               ) : (
-                <button type="button" onClick={() => setPendingDeleteId(client.id)} className="text-sm text-slate-500">
-                  Eliminar
+                <button type="button" onClick={() => setPendingDeleteId(client.id)} className="inline-flex items-center gap-1.5 text-xs text-slate-500 transition hover:text-rose-300">
+                  <Trash2 size={14} /> Eliminar cliente
                 </button>
               )}
             </div>
-          </li>
+          </motion.li>
         ))}
       </ul>
 
       {clients.length === 0 && (
-        <p className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
-          {query ? "Ningún cliente coincide con la búsqueda." : "Todavía no hay clientes."}
-        </p>
+        <div className="glass flex flex-col items-center rounded-3xl border-dashed px-5 py-10 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 text-slate-400"><UserRound size={22} /></span>
+          <p className="mt-3 font-medium text-slate-200">{query ? "Sin resultados" : "Tu cartera empieza aquí"}</p>
+          <p className="mt-1 text-sm text-slate-400">{query ? "No encontramos clientes con esos datos." : "Agrega tu primer cliente para empezar a gestionar préstamos."}</p>
+          {!query && <button type="button" onClick={openCreate} className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-emerald-300"><Plus size={16} />Crear cliente</button>}
+        </div>
       )}
     </section>
   );
@@ -165,9 +186,8 @@ export function ClientsPage() {
 function Field({ label, ...props }) {
   return (
     <label className="block space-y-1.5 text-sm">
-      <span className="font-medium text-slate-700">{label}</span>
-      <input {...props} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none ring-teal-700 focus:ring-2" />
+      <span className="font-medium text-slate-300">{label}</span>
+      <input {...props} className="w-full rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2.5 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-emerald-400/50 focus:ring-2 focus:ring-emerald-400/10" />
     </label>
   );
 }
-

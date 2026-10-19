@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { CalendarDays, ChevronRight, CirclePlus, Landmark, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { LoanEditor } from "../components/LoanEditor";
 import { useAppState } from "../context/AppStateContext";
@@ -93,15 +95,16 @@ export function LoansPage() {
     <section className="mx-auto w-full max-w-2xl space-y-5">
       <header className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Préstamos</h1>
-          <p className="mt-1 text-sm text-slate-600">Tasa mensual sobre el capital. Mora: {formatMoney(LATE_FEE_PER_DAY)} por día.</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/80">Cartera activa</p>
+          <h1 className="flex items-center gap-2 text-2xl font-semibold text-white"><Landmark size={22} className="text-emerald-300" />Préstamos</h1>
+          <p className="mt-1 text-sm text-slate-400">Tasa mensual sobre el capital · mora {formatMoney(LATE_FEE_PER_DAY)} por día.</p>
         </div>
-        <button type="button" onClick={() => { setError(""); setCreating(true); setEditing(false); setSelectedId(""); }} className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white">
-          Nuevo
+        <button type="button" onClick={() => { setError(""); setCreating(true); setEditing(false); setSelectedId(""); }} className="flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-950/30 transition hover:brightness-110">
+          <CirclePlus size={18} /><span className="hidden sm:inline">Nuevo préstamo</span><span className="sm:hidden">Nuevo</span>
         </button>
       </header>
 
-      {error && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+      {error && <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error}</p>}
       {creating && (
         <LoanForm
           clients={database.clients ?? []}
@@ -142,24 +145,38 @@ export function LoansPage() {
           const client = (database.clients ?? []).find((item) => item.id === loan.clientId);
           const nextDue = loan.installments?.find((installment) => installment.status !== "paid");
           return (
-            <li key={loan.id}>
-              <button type="button" onClick={() => { setSelectedId(loan.id); setCreating(false); setEditing(false); }} className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm">
+            <motion.li key={loan.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -2 }}>
+              <button type="button" onClick={() => { setSelectedId(loan.id); setCreating(false); setEditing(false); }} className="glass w-full rounded-2xl p-4 text-left transition hover:border-emerald-300/20 hover:bg-white/[0.07]">
                 <span className="flex items-start justify-between gap-3">
-                  <span>
-                    <span className="block font-medium text-slate-900">{client ? clientName(client) : "Cliente eliminado"}</span>
-                    <span className="mt-1 block text-sm text-slate-600">{formatMoney(loan.capital)} · {loan.installmentCount} cuotas · {loan.interestRate}%</span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-white">{client ? clientName(client) : "Cliente eliminado"}</span>
+                    <span className="mt-1 block text-sm text-slate-400">{formatMoney(loan.capital)} · {loan.installmentCount} cuotas · {loan.interestRate}% mensual</span>
                   </span>
-                  <span className="text-sm font-medium text-slate-900">{formatMoney(outstandingBalance(loan, today))}</span>
+                  <span className="shrink-0 text-right">
+                    <span className="block text-[10px] uppercase tracking-wide text-slate-500">Saldo</span>
+                    <span className="text-sm font-semibold text-white">{formatMoney(outstandingBalance(loan, today))}</span>
+                  </span>
                 </span>
-                <span className="mt-2 block text-sm text-slate-500">
-                  {nextDue ? `Próximo vencimiento ${formatDisplayDate(nextDue.dueDate)}` : "Todas las cuotas cobradas"}
+                <span className="mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-xs text-slate-400">
+                  <span className="flex items-center gap-1.5">
+                    <CalendarDays size={14} />
+                    {nextDue ? `Próximo vencimiento ${formatDisplayDate(nextDue.dueDate)}` : "Todas las cuotas cobradas"}
+                  </span>
+                  <ChevronRight size={16} className="text-slate-500" />
                 </span>
               </button>
-            </li>
+            </motion.li>
           );
         })}
       </ul>
-      {loans.length === 0 && !creating && <p className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">Todavía no hay préstamos.</p>}
+      {loans.length === 0 && !creating && (
+        <div className="glass flex flex-col items-center rounded-3xl border-dashed px-5 py-10 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-400/10 text-sky-300"><Landmark size={22} /></span>
+          <p className="mt-3 font-medium text-slate-200">Sin préstamos todavía</p>
+          <p className="mt-1 text-sm text-slate-400">Crea un préstamo y define sus cuotas, tasa y vencimientos.</p>
+          <button type="button" onClick={() => setCreating(true)} className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-emerald-300"><CirclePlus size={16} />Crear préstamo</button>
+        </div>
+      )}
     </section>
   );
 }
@@ -194,20 +211,23 @@ function LoanForm({ clients, syncing, onCancel, onSubmit }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="font-medium text-slate-900">Nuevo préstamo</h2>
-      <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 text-sm">
-        <button type="button" onClick={() => setClientMode("existing")} disabled={!clients.length} className={`rounded-lg px-3 py-2 ${clientMode === "existing" ? "bg-white font-medium text-slate-900" : "text-slate-500"}`}>Existente</button>
-        <button type="button" onClick={() => setClientMode("new")} className={`rounded-lg px-3 py-2 ${clientMode === "new" ? "bg-white font-medium text-slate-900" : "text-slate-500"}`}>Nuevo cliente</button>
+    <form onSubmit={handleSubmit} className="glass space-y-4 rounded-3xl p-5 sm:p-6">
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-300"><Landmark size={20} /></span>
+        <div><h2 className="font-semibold text-white">Nuevo préstamo</h2><p className="text-xs text-slate-400">Define el cliente y las condiciones</p></div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/5 bg-slate-950/40 p-1 text-sm">
+        <button type="button" onClick={() => setClientMode("existing")} disabled={!clients.length} className={`rounded-xl px-3 py-2.5 transition ${clientMode === "existing" ? "bg-white/10 font-medium text-white" : "text-slate-400 hover:text-white"}`}>Existente</button>
+        <button type="button" onClick={() => setClientMode("new")} className={`rounded-xl px-3 py-2.5 transition ${clientMode === "new" ? "bg-white/10 font-medium text-white" : "text-slate-400 hover:text-white"}`}>Nuevo cliente</button>
       </div>
 
       {clientMode === "existing" ? (
         <label className="block space-y-1.5 text-sm">
-          <span className="font-medium text-slate-700">Cliente</span>
-          <select value={clientId} onChange={(event) => setClientId(event.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2.5">
+          <span className="font-medium text-slate-300">Cliente</span>
+          <select value={clientId} onChange={(event) => setClientId(event.target.value)} className="w-full rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2.5 text-slate-100">
             {clients.map((item) => <option key={item.id} value={item.id}>{clientName(item)} · {item.dni}</option>)}
           </select>
-          {selectedClient && <span className="block text-slate-500">{selectedClient.phone} · {selectedClient.address}</span>}
+          {selectedClient && <span className="block text-slate-400">{selectedClient.phone} · {selectedClient.address}</span>}
         </label>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -225,8 +245,8 @@ function LoanForm({ clients, syncing, onCancel, onSubmit }) {
         <TextField label="Capital" value={capital} onChange={setCapital} inputMode="numeric" required />
         <TextField label="Tasa mensual %" value={interestRate} onChange={setInterestRate} inputMode="decimal" required />
         <label className="block space-y-1.5 text-sm">
-          <span className="font-medium text-slate-700">Cuotas</span>
-          <select value={installmentCount} onChange={(event) => setInstallmentCount(event.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2.5">
+          <span className="font-medium text-slate-300">Cuotas</span>
+          <select value={installmentCount} onChange={(event) => setInstallmentCount(event.target.value)} className="w-full rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2.5 text-slate-100">
             {Array.from({ length: MAX_INSTALLMENTS - MIN_INSTALLMENTS + 1 }, (_, index) => {
               const count = index + MIN_INSTALLMENTS;
               return <option key={count} value={count}>{count}</option>;
@@ -235,13 +255,13 @@ function LoanForm({ clients, syncing, onCancel, onSubmit }) {
         </label>
         <TextField label="Primera cuota" type="date" value={firstDueDate} onChange={setFirstDueDate} required />
       </div>
-      <p className="text-sm text-slate-500">Frecuencia mensual. Cada cuota suma capital prorrateado más el interés del capital original.</p>
+      <p className="rounded-xl border border-sky-300/10 bg-sky-300/5 px-3 py-2.5 text-sm text-sky-100/80">Frecuencia mensual. Cada cuota suma capital prorrateado más el interés del capital original.</p>
 
       {preview.schedule && <ScheduleTable installments={preview.schedule.installments} today={todayISODate()} total={preview.schedule.totalAmount} />}
-      {(error || (capital && preview.error)) && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error || preview.error}</p>}
+      {(error || (capital && preview.error)) && <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error || preview.error}</p>}
       <div className="flex flex-col gap-3 sm:flex-row">
         <button type="submit" disabled={syncing || !preview.schedule} className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-medium text-white disabled:opacity-60">{syncing ? "Guardando..." : "Guardar préstamo"}</button>
-        <button type="button" onClick={onCancel} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700">Cancelar</button>
+        <button type="button" onClick={onCancel} className="rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/5">Cancelar</button>
       </div>
     </form>
   );
@@ -249,15 +269,15 @@ function LoanForm({ clients, syncing, onCancel, onSubmit }) {
 
 function LoanDetail({ loan, client, today, syncing, pendingDelete, onBack, onAskDelete, onCancelDelete, onDelete, onCollect, onEdit }) {
   return (
-    <article className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="glass space-y-4 rounded-3xl p-5 sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-medium text-slate-900">{client ? clientName(client) : "Cliente eliminado"}</h2>
-          <p className="mt-1 text-sm text-slate-600">{formatMoney(loan.capital)} al {loan.interestRate}% · saldo {formatMoney(outstandingBalance(loan, today))}</p>
+          <h2 className="text-lg font-semibold text-white">{client ? clientName(client) : "Cliente eliminado"}</h2>
+          <p className="mt-1 text-sm text-slate-400">{formatMoney(loan.capital)} al {loan.interestRate}% · saldo {formatMoney(outstandingBalance(loan, today))}</p>
         </div>
         <div className="flex gap-3">
-          <button type="button" onClick={onEdit} className="text-sm font-medium text-teal-800">Editar</button>
-          <button type="button" onClick={onBack} className="text-sm font-medium text-slate-500">Cerrar</button>
+          <button type="button" onClick={onEdit} className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-300"><Pencil size={14} />Editar</button>
+          <button type="button" onClick={onBack} className="text-sm font-medium text-slate-400 hover:text-white">Cerrar</button>
         </div>
       </div>
       <ScheduleTable installments={loan.installments ?? []} today={today} total={loan.totalAmount} syncing={syncing} onCollect={onCollect} />
@@ -267,7 +287,7 @@ function LoanDetail({ loan, client, today, syncing, pendingDelete, onBack, onAsk
           <button type="button" onClick={onCancelDelete} className="text-slate-500">Cancelar</button>
         </div>
       ) : (
-        <button type="button" onClick={onAskDelete} className="text-sm text-slate-500">Eliminar préstamo</button>
+        <button type="button" onClick={onAskDelete} className="inline-flex items-center gap-1.5 text-sm text-slate-500 transition hover:text-rose-300"><Trash2 size={14} />Eliminar préstamo</button>
       )}
     </article>
   );
@@ -275,9 +295,9 @@ function LoanDetail({ loan, client, today, syncing, pendingDelete, onBack, onAsk
 
 function ScheduleTable({ installments, today, total, syncing = false, onCollect }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="glass overflow-x-auto rounded-2xl p-3 sm:p-4">
       <table className="w-full min-w-[36rem] text-left text-sm">
-        <thead className="text-slate-500">
+        <thead className="text-xs uppercase tracking-wide text-slate-500">
           <tr>
             <th className="py-2 pr-3 font-medium">Cuota</th>
             <th className="py-2 pr-3 font-medium">Vence</th>
@@ -293,10 +313,10 @@ function ScheduleTable({ installments, today, total, syncing = false, onCollect 
             const status = installmentStatus(installment, today);
             const lateFee = lateFeeForInstallment(installment, today);
             return (
-              <tr key={installment.id ?? installment.number} className="border-t border-slate-100">
+              <tr key={installment.id ?? installment.number} className="border-t border-white/5 text-slate-300">
                 <td className="py-2 pr-3">
                   {installment.number}
-                  <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${status === "overdue" ? "bg-rose-50 text-rose-700" : status === "paid" ? "bg-teal-50 text-teal-800" : "bg-slate-100 text-slate-600"}`}>{STATUS_LABEL[status]}</span>
+                  <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${status === "overdue" ? "bg-orange-400/10 text-orange-300" : status === "paid" ? "bg-emerald-400/10 text-emerald-200" : "bg-white/5 text-slate-400"}`}>{STATUS_LABEL[status]}</span>
                 </td>
                 <td className="py-2 pr-3">{formatDisplayDate(installment.dueDate)}</td>
                 <td className="py-2 pr-3">{formatMoney(installment.capitalPart)}</td>
@@ -305,7 +325,7 @@ function ScheduleTable({ installments, today, total, syncing = false, onCollect 
                 <td className="py-2 pr-3">{formatMoney(amountDue(installment, today))}</td>
                 {onCollect && (
                   <td className="py-2">
-                    <button type="button" disabled={syncing} onClick={() => onCollect(installment)} className="font-medium text-teal-800 disabled:opacity-60">
+                    <button type="button" disabled={syncing} onClick={() => onCollect(installment)} className="font-semibold text-emerald-300 transition hover:text-emerald-200 disabled:opacity-60">
                       {installment.status === "paid" ? "Pendiente" : "Cobrar"}
                     </button>
                   </td>
@@ -315,7 +335,7 @@ function ScheduleTable({ installments, today, total, syncing = false, onCollect 
           })}
         </tbody>
         <tfoot>
-          <tr className="border-t border-slate-200 font-medium">
+          <tr className="border-t border-white/10 font-semibold text-white">
             <td className="py-2" colSpan={onCollect ? 6 : 5}>Total pactado sin mora</td>
             <td className="py-2">{formatMoney(total)}</td>
           </tr>
@@ -328,9 +348,8 @@ function ScheduleTable({ installments, today, total, syncing = false, onCollect 
 function TextField({ label, onChange, ...props }) {
   return (
     <label className="block space-y-1.5 text-sm">
-      <span className="font-medium text-slate-700">{label}</span>
-      <input {...props} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none ring-teal-700 focus:ring-2" />
+      <span className="font-medium text-slate-300">{label}</span>
+      <input {...props} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2.5 text-slate-100 outline-none transition focus:border-emerald-400/50 focus:ring-2 focus:ring-emerald-400/10" />
     </label>
   );
 }
-

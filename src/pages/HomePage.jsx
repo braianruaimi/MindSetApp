@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { CalendarDays, ChevronLeft, ChevronRight, Landmark, Users } from "lucide-react";
 import { toast } from "sonner";
 import { CollectBurst } from "../components/CollectBurst";
 import { useAppState } from "../context/AppStateContext";
@@ -77,17 +79,18 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
       <section className="mx-auto w-full max-w-2xl space-y-5">
         <CollectBurst trigger={burst} />
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-slate-900">Cobros</h1>
-          <p className="text-sm text-slate-600">{formatDisplayDate(today)} · guardado en este dispositivo</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/80">Agenda</p>
+          <h1 className="text-2xl font-semibold text-white">Cobros</h1>
+          <p className="flex items-center gap-1.5 text-sm text-slate-400"><CalendarDays size={14} />{formatDisplayDate(today)} · guardado en este dispositivo</p>
         </header>
 
-                 {actionError && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{actionError}</p>}
+        {actionError && <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{actionError}</p>}
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="glass rounded-3xl p-4 sm:p-5">
           <div className="mb-3 flex items-center justify-between">
-            <button type="button" onClick={() => shiftMonth(-1)} className="rounded-lg px-3 py-2 text-sm text-slate-600">Anterior</button>
-            <p className="text-sm font-medium capitalize text-slate-900">{monthLabel(visibleMonth)}</p>
-            <button type="button" onClick={() => shiftMonth(1)} className="rounded-lg px-3 py-2 text-sm text-slate-600">Siguiente</button>
+            <button type="button" aria-label="Mes anterior" onClick={() => shiftMonth(-1)} className="rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"><ChevronLeft size={18} /></button>
+            <p className="text-sm font-semibold capitalize text-white">{monthLabel(visibleMonth)}</p>
+            <button type="button" aria-label="Mes siguiente" onClick={() => shiftMonth(1)} className="rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"><ChevronRight size={18} /></button>
           </div>
           <div className="grid grid-cols-7 gap-1 text-center text-xs text-slate-400">
             {WEEKDAYS.map((day) => <span key={day} className="py-1">{day}</span>)}
@@ -103,10 +106,10 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
                   key={isoDate}
                   type="button"
                   onClick={() => setSelectedDate(isoDate)}
-                  className={`relative rounded-lg py-2 text-sm ${selected ? "bg-teal-700 text-white" : isoDate === today ? "bg-teal-50 text-teal-900" : "text-slate-700"}`}
+                  className={`relative aspect-square rounded-xl text-sm transition ${selected ? "bg-teal-700 font-semibold text-white shadow-lg shadow-emerald-950/40" : isoDate === today ? "bg-emerald-400/10 font-medium text-emerald-200" : "text-slate-300 hover:bg-white/10"}`}
                 >
                   {Number(isoDate.slice(-2))}
-                  {dayEntries.length > 0 && <span className={`absolute bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full ${selected ? "bg-white" : hasOverdue ? "bg-rose-600" : "bg-teal-700"}`} />}
+                  {dayEntries.length > 0 && <span className={`absolute bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full ${selected ? "bg-emerald-100" : hasOverdue ? "bg-rose-500" : "bg-emerald-400"}`} />}
                 </button>
               );
             })}
@@ -118,8 +121,8 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
         <CollectionSection title="Próximos 7 días" entries={upcoming} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} empty="No hay vencimientos en los próximos 7 días." />
 
         <div className="flex flex-col gap-3 sm:flex-row">
-          <button type="button" onClick={onOpenClients} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700">Clientes</button>
-          <button type="button" onClick={onOpenLoans} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700">Préstamos</button>
+          <button type="button" onClick={onOpenClients} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10"><Users size={16} />Clientes</button>
+          <button type="button" onClick={onOpenLoans} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10"><Landmark size={16} />Préstamos</button>
         </div>
       </section>
     );
@@ -129,11 +132,11 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
     return (
       <section className="space-y-3">
         <div className="flex items-end justify-between">
-          <h2 className="font-medium text-slate-900">{title}</h2>
-          {total !== undefined && <p className="text-sm text-slate-600">{formatMoney(total)}</p>}
+          <h2 className="font-semibold text-white">{title}</h2>
+          {total !== undefined && <p className="rounded-full bg-emerald-400/10 px-3 py-1 text-sm font-medium text-emerald-200">{formatMoney(total)}</p>}
         </div>
         {entries.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">{empty}</p>
+          <p className="glass rounded-2xl border-dashed px-4 py-6 text-center text-sm text-slate-400">{empty}</p>
         ) : (
           <ul className="space-y-3">
             {entries.map((entry) => {
@@ -141,21 +144,21 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
               const status = installmentStatus(entry.installment, today);
               const lateFee = lateFeeForInstallment(entry.installment, today);
               return (
-                <li key={entry.installment.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <motion.li key={entry.installment.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="glass rounded-2xl p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-medium text-slate-900">{client ? clientName(client) : "Cliente eliminado"}</p>
+                      <p className="font-semibold text-white">{client ? clientName(client) : "Cliente eliminado"}</p>
                       <p className="mt-1 text-sm text-slate-600">Cuota {entry.installment.number}/{entry.loan.installmentCount} · {formatDisplayDate(entry.installment.dueDate)}</p>
                       <p className="mt-1 text-sm text-slate-500">Saldo del préstamo: {formatMoney(outstandingBalance(entry.loan, today))}</p>
                     </div>
                     <p className="text-sm font-semibold text-slate-900">{formatMoney(amountDue(entry.installment, today))}</p>
                   </div>
                   {lateFee > 0 && <p className="mt-2 text-sm text-rose-700">Mora {formatMoney(lateFee)}</p>}
-                  <label className="mt-3 flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={status === "paid"} disabled={syncing} onChange={() => onToggle(entry)} className="h-4 w-4 accent-teal-700" />
-                    <span className={status === "overdue" ? "font-medium text-rose-700" : "text-slate-700"}>{STATUS_LABEL[status]}</span>
+                  <label className={`mt-3 flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-sm ${status === "paid" ? "bg-emerald-400/10 text-emerald-200" : status === "overdue" ? "bg-orange-400/10 text-orange-300" : "bg-white/5 text-slate-300"}`}>
+                    <input type="checkbox" checked={status === "paid"} disabled={syncing} onChange={() => onToggle(entry)} className="h-4 w-4 accent-emerald-400" />
+                    <span className="font-medium">{STATUS_LABEL[status]}</span>
                   </label>
-                </li>
+                </motion.li>
               );
             })}
           </ul>
