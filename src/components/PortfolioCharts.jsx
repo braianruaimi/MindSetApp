@@ -16,7 +16,7 @@ export function PortfolioCharts({
     <>
       <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass rounded-3xl p-5">
         <h2 className="font-medium text-white">Estado de la cartera</h2>
-        <p className="mt-1 text-xs text-slate-400">Saldo cobrado frente al pendiente; las cuotas vencidas se separan del resto.</p>
+        <p className="mt-1 text-xs text-slate-400">Capital recuperado frente al que sigue en la calle; el capital de cuotas vencidas se separa del resto.</p>
         <div className="mt-2 flex flex-col items-center gap-4 sm:flex-row">
           <div className="relative h-44 w-44 shrink-0">
             <ResponsiveContainer width="100%" height="100%">
@@ -40,8 +40,8 @@ export function PortfolioCharts({
               </PieChart>
             </ResponsiveContainer>
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-semibold text-white"><CountUp value={percent(report.cashCollected)} format={(n) => `${n}%`} /></span>
-              <span className="text-xs text-slate-400">cobrado</span>
+              <span className="text-2xl font-semibold text-white"><CountUp value={              percent(report.recoveredCapital)} format={(n) => `${n}%`} /></span>
+                            <span className="text-xs text-slate-400">recuperado</span>
             </div>
           </div>
           <ul className="w-full flex-1 space-y-2 text-sm">

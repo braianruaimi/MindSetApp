@@ -5,13 +5,19 @@ import { usePrivacyLock } from "../context/usePrivacyLock";
 import { deleteSnapshot, downloadBackupText, downloadSnapshot, parseBackupText } from "../services/backups";
 import { decryptBackupText, encryptBackupText, isEncryptedBackupText } from "../services/backupCrypto";
 import { markExported } from "../services/storage";
+import { compareBackup, verifyBackupText } from "../services/backupVerify";
 import { formatDisplayDate } from "../utils/dates";
 import { formatMoney } from "../utils/money";
+
+function describeSummary(summary) {
+  return `${summary.clients} clientes, ${summary.loans} préstamos, ${summary.installments} cuotas, ${summary.paid} cobros`;
+}
 
 export function BackupsPage() {
   const { database, backups, backupWarning, storageError, persistentStorage, lastExportAt, setLastExportAt, refreshBackups, restoreState } = useAppState();
   const privacy = usePrivacyLock();
   const [error, setError] = useState("");
+  const [verified, setVerified] = useState("");
   const [pendingId, setPendingId] = useState("");
   const [pendingImport, setPendingImport] = useState(null);
   const [pendingEncryptedText, setPendingEncryptedText] = useState("");
@@ -26,12 +32,14 @@ export function BackupsPage() {
 
   async function handleDownload(snapshot) {
     setError("");
+    setVerified("");
     const pin = await privacy.confirmPin("Ingresa tu PIN para cifrar y descargar este respaldo.");
     if (!pin) return;
     try {
-      await downloadSnapshot(snapshot, pin);
+      const summary = await downloadSnapshot(snapshot, pin);
       const timestamp = markExported();
       setLastExportAt(timestamp);
+      setVerified(`Respaldo verificado: se volvió a abrir y coincide con tus datos (${describeSummary(summary)}).`);
     } catch (downloadError) {
       setError(downloadError.message);
     }
@@ -96,6 +104,7 @@ export function BackupsPage() {
 
   async function handleEncryptedDownload() {
     setError("");
+    setVerified("");
     if (backupPassphrase !== backupPassphraseConfirm) {
       setError("Las contraseñas no coinciden.");
       return;
@@ -103,9 +112,11 @@ export function BackupsPage() {
     if (!(await privacy.confirmPin("Ingresa tu PIN para descargar el respaldo cifrado."))) return;
     try {
       const text = await encryptBackupText(database, backupPassphrase);
+      const summary = await verifyBackupText(text, backupPassphrase, database);
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
       downloadBackupText(text, `mindset-backup-cifrado-${stamp}.json`);
       setLastExportAt(markExported());
+      setVerified(`Respaldo verificado: se volvió a abrir y coincide con tus datos (${describeSummary(summary)}).`);
       setBackupPassphrase("");
       setBackupPassphraseConfirm("");
     } catch (encryptError) {
@@ -155,7 +166,7 @@ export function BackupsPage() {
       <header className="space-y-2">
         <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/80">Seguridad local</p>
         <h1 className="flex items-center gap-2 text-2xl font-semibold text-white"><DatabaseBackup size={23} className="text-emerald-300" /> Respaldo</h1>
-        <p className="text-sm leading-6 text-slate-400">Los cambios se guardan en este navegador. Descarga el JSON con frecuencia para poder recuperar tus datos si se borra el almacenamiento del sitio.</p>
+        <p className="text-sm leading-6 text-slate-400">El respaldo incluye todos tus clientes, préstamos y cuotas, con importes, vencimientos, estados y fechas de cobro, mora, datos de contacto e historial de operaciones. Se descarga cifrado con tu PIN para que puedas recuperar la base completa si se borra el almacenamiento del sitio.</p>
         <p className="flex items-center gap-1.5 text-xs text-slate-500"><ShieldCheck size={14} />{lastExportAt ? `Última descarga: ${formatSnapshotDate(lastExportAt)}` : "Todavía no descargaste ningún respaldo."}</p>
       </header>
 
@@ -200,7 +211,7 @@ export function BackupsPage() {
       {storageError && <p role="alert" className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{storageError}</p>}
 
       <div className="glass grid gap-3 rounded-3xl p-4 sm:grid-cols-2 sm:p-5">
-        <button type="button" onClick={() => handleDownload({ createdAt: new Date().toISOString(), state: database })} className="flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-950/30 transition hover:brightness-110"><Download size={17} />Descargar respaldo cifrado (.json)</button>
+        <button type="button" onClick={() => handleDownload({ createdAt: new Date().toISOString(), state: database })} className="flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-950/30 transition hover:brightness-110"><Download size={17} />Descargar respaldo completo (.json)</button>
         <button type="button" onClick={() => fileInput.current?.click()} className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"><FileUp size={17} />Cargar respaldo JSON</button>
         <input ref={fileInput} type="file" accept="application/json,.json" className="hidden" onChange={handleImport} />
       </div>
@@ -228,15 +239,43 @@ export function BackupsPage() {
         </section>
       )}
 
-      {pendingImport && (
-        <div className="space-y-3 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">
-          <p>El archivo tiene {pendingImport.clients.length} clientes y {pendingImport.loans.length} préstamos. Reemplazará los datos actuales.</p>
-          <div className="flex gap-4">
-            <button type="button" onClick={confirmImport} className="font-semibold text-rose-300 transition hover:text-rose-200">Reemplazar datos</button>
-            <button type="button" onClick={() => setPendingImport(null)} className="text-slate-400 transition hover:text-white">Cancelar</button>
+      {pendingImport && (() => {
+        const comparison = compareBackup(database, pendingImport);
+        const { incoming, current } = comparison;
+        return (
+          <div className="space-y-3 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">
+            <p className="font-medium">Archivo verificado. Revisa qué cambiará antes de reemplazar tus datos:</p>
+            <table className="w-full text-left text-xs">
+              <thead className="text-amber-200/70"><tr><th className="py-1 font-normal"></th><th className="font-normal">Ahora</th><th className="font-normal">Archivo</th></tr></thead>
+              <tbody>
+                {[
+                  ["Clientes", current.clients, incoming.clients],
+                  ["Préstamos", current.loans, incoming.loans],
+                  ["Cuotas", current.installments, incoming.installments],
+                  ["Cobros registrados", current.paid, incoming.paid],
+                  ["Cuotas pendientes", current.pending, incoming.pending],
+                  ["Operaciones", current.auditEntries, incoming.auditEntries],
+                ].map(([label, now, next]) => (
+                  <tr key={label} className="border-t border-white/10"><td className="py-1">{label}</td><td>{now}</td><td className={next < now ? "font-semibold text-rose-300" : "font-semibold text-white"}>{next}</td></tr>
+                ))}
+              </tbody>
+            </table>
+            {incoming.issues.length > 0 && (
+              <ul className="list-disc space-y-1 pl-5 text-xs text-orange-200">
+                {incoming.issues.map((issue) => <li key={issue}>{issue}</li>)}
+              </ul>
+            )}
+            {(comparison.clientsDelta < 0 || comparison.loansDelta < 0 || comparison.paidDelta < 0) && (
+              <p className="text-xs text-rose-300">Atención: el archivo tiene menos datos que la app actual. Se guardará un punto de recuperación antes de reemplazar.</p>
+            )}
+            <div className="flex gap-4">
+              <button type="button" onClick={confirmImport} className="font-semibold text-rose-300 transition hover:text-rose-200">Reemplazar datos</button>
+              <button type="button" onClick={() => setPendingImport(null)} className="text-slate-400 transition hover:text-white">Cancelar</button>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+      {verified && <p role="status" className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">{verified}</p>}
       {(error || backupWarning) && <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error || backupWarning}</p>}
 
       <section className="space-y-3">

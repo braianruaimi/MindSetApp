@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { CalendarCheck, DatabaseBackup, LayoutDashboard, Landmark, RefreshCw, Users, WifiOff } from "lucide-react";
 import { useAppState } from "../context/AppStateContext";
+import { backupReminder } from "../services/backupVerify";
 import { formatDisplayDate } from "../utils/dates";
 
 const NAV_ITEMS = [
@@ -13,11 +14,13 @@ const NAV_ITEMS = [
 ];
 
 export function AppShell({ view, onChangeView, children }) {
-  const { lastExportAt, storageError } = useAppState();
+  const { lastExportAt, storageError, database } = useAppState();
   const [online, setOnline] = useState(navigator.onLine);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [pwaError, setPwaError] = useState("");
-  const stale = !lastExportAt;
+  const hasData = (database.clients?.length ?? 0) + (database.loans?.length ?? 0) > 0;
+  const reminder = backupReminder(lastExportAt, hasData);
+  const stale = !lastExportAt || Boolean(reminder);
 
   useEffect(() => {
     const handleOnline = () => setOnline(true);
@@ -75,6 +78,12 @@ export function AppShell({ view, onChangeView, children }) {
             <button type="button" onClick={() => onChangeView("backups")} className="shrink-0 rounded-xl bg-rose-400/15 px-4 py-2 font-medium text-rose-100">
               Abrir Respaldo
             </button>
+          </div>
+        )}
+        {reminder && view !== "backups" && (
+          <div role="status" className="mx-auto mb-4 flex w-full max-w-2xl flex-col gap-3 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100 sm:flex-row sm:items-center sm:justify-between">
+            <p>{reminder} Descarga uno para poder recuperar tus datos si se borran.</p>
+            <button type="button" onClick={() => onChangeView("backups")} className="shrink-0 rounded-xl bg-amber-400/15 px-4 py-2 font-medium text-amber-100">Hacer respaldo</button>
           </div>
         )}
         {children}

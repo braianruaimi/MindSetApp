@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarDays, ChevronLeft, ChevronRight, Landmark, Users } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Filter, Landmark, Users } from "lucide-react";
 import { toast } from "sonner";
 import { CollectBurst } from "../components/CollectBurst";
 import { useAppState } from "../context/AppStateContext";
 import { clientName } from "../services/clients";
+import { EMPTY_FILTERS, filterEntries, hasActiveFilters, summarizeEntries } from "../services/collectionsFilter";
 import {
   amountDue,
   collectionDateForInstallment,
@@ -50,6 +51,16 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
     })
     .sort((a, b) => a.installment.dueDate.localeCompare(b.installment.dueDate));
   const dayTotal = selectedEntries.reduce((sum, entry) => sum + amountDue(entry.installment, today), 0);
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const filtering = hasActiveFilters(filters);
+  const filteredEntries = useMemo(() => (filtering ? filterEntries(entries, filters, today) : []), [entries, filters, filtering, today]);
+  const filteredSummary = useMemo(() => summarizeEntries(filteredEntries, today), [filteredEntries, today]);
+  const overall = useMemo(() => summarizeEntries(entries, today), [entries, today]);
+  const todayEntries = dueByDate.get(today) ?? [];
+  const upcomingAll = entries.filter((entry) => {
+    const daysUntil = daysAfter(today, entry.installment.dueDate);
+    return entry.installment.status !== "paid" && daysUntil > 0 && daysUntil <= 7;
+  });
   const cells = monthCells(visibleMonth.year, visibleMonth.month);
 
   async function toggleCollection(entry) {
@@ -90,6 +101,49 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
 
         {actionError && <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{actionError}</p>}
 
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <SummaryCard label="Atrasadas" count={overall.overdueCount} amount={overall.overdue} tone="text-orange-300" />
+          <SummaryCard label="Hoy" count={todayEntries.length} amount={todayEntries.reduce((sum, entry) => sum + (entry.installment.status === "paid" ? 0 : amountDue(entry.installment, today)), 0)} tone="text-emerald-300" />
+          <SummaryCard label="Próx. 7 días" count={upcomingAll.length} amount={upcomingAll.reduce((sum, entry) => sum + amountDue(entry.installment, today), 0)} tone="text-sky-300" />
+        </div>
+
+        <div className="glass space-y-3 rounded-3xl p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-white"><Filter size={15} className="text-sky-300" />Filtros</h2>
+            {filtering && <button type="button" onClick={() => setFilters(EMPTY_FILTERS)} className="text-xs text-slate-400 hover:text-white">Limpiar</button>}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <select aria-label="Filtrar por cliente" value={filters.clientId} onChange={(event) => setFilters({ ...filters, clientId: event.target.value })} className="w-full rounded-xl border border-white/10 px-3 py-2.5 text-sm">
+              <option value="">Todos los clientes</option>
+              {[...database.clients].sort((a, b) => clientName(a).localeCompare(clientName(b))).map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
+            </select>
+            <select aria-label="Filtrar por estado" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })} className="w-full rounded-xl border border-white/10 px-3 py-2.5 text-sm">
+              <option value="">Todos los estados</option>
+              <option value="pending">Pendiente</option>
+              <option value="overdue">Atrasado</option>
+              <option value="paid">Cobrado</option>
+            </select>
+            <label className="text-xs text-slate-400">Desde
+              <input type="date" value={filters.from} max={filters.to || undefined} onChange={(event) => setFilters({ ...filters, from: event.target.value })} className="mt-1 w-full rounded-xl border border-white/10 px-3 py-2.5 text-sm" />
+            </label>
+            <label className="text-xs text-slate-400">Hasta
+              <input type="date" value={filters.to} min={filters.from || undefined} onChange={(event) => setFilters({ ...filters, to: event.target.value })} className="mt-1 w-full rounded-xl border border-white/10 px-3 py-2.5 text-sm" />
+            </label>
+          </div>
+        </div>
+
+        {filtering ? (
+          <>
+            <div className="glass grid grid-cols-3 gap-3 rounded-2xl p-4 text-center text-xs text-slate-400">
+              <p>Cobrado<span className="block text-base font-semibold text-emerald-300">{formatMoney(filteredSummary.collected)}</span>{filteredSummary.collectedCount} cuotas</p>
+              <p>Por cobrar<span className="block text-base font-semibold text-white">{formatMoney(filteredSummary.toCollect)}</span>{filteredSummary.toCollectCount} cuotas</p>
+              <p>Atrasado<span className="block text-base font-semibold text-orange-300">{formatMoney(filteredSummary.overdue)}</span>{filteredSummary.overdueCount} cuotas</p>
+            </div>
+            <CollectionSection title={`Resultados (${filteredEntries.length})`} entries={filteredEntries} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} empty="Ninguna cuota coincide con los filtros." />
+          </>
+        ) : null}
+
+        {!filtering && (<>
         <div className="glass rounded-3xl p-4 sm:p-5">
           <div className="mb-3 flex items-center justify-between">
             <button type="button" aria-label="Mes anterior" onClick={() => shiftMonth(-1)} className="rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"><ChevronLeft size={18} /></button>
@@ -123,6 +177,7 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
         <CollectionSection title={selectedDate === today ? "Cobros de hoy" : `Cobros del ${formatDisplayDate(selectedDate)}`} total={dayTotal} entries={selectedEntries} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} empty="No hay cuotas para esta fecha." />
         <CollectionSection title="Atrasados" entries={overdue} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} empty="No hay cuotas atrasadas." />
         <CollectionSection title="Próximos 7 días" entries={upcoming} clients={database.clients} today={today} syncing={syncing} onToggle={toggleCollection} empty="No hay vencimientos en los próximos 7 días." />
+        </>)}
 
         <div className="flex flex-col gap-3 sm:flex-row">
           <button type="button" onClick={onOpenClients} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/10"><Users size={16} />Clientes</button>
@@ -169,6 +224,16 @@ export function HomePage({ onOpenClients, onOpenLoans }) {
           </ul>
         )}
       </section>
+    );
+  }
+
+  function SummaryCard({ label, count, amount, tone }) {
+    return (
+      <div className="glass rounded-2xl p-3">
+        <p className="text-xs text-slate-400">{label}</p>
+        <p className={`mt-1 text-lg font-semibold ${tone}`}>{count}</p>
+        <p className="text-xs text-slate-500">{formatMoney(amount)}</p>
+      </div>
     );
   }
 

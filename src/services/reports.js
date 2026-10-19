@@ -13,6 +13,9 @@ export function buildReport(database, today) {
     cashCollected: 0,
     streetCapital: 0,
     streetMoney: 0,
+    overdueCapital: 0,
+    receivable: 0,
+    pendingInterestDue: 0,
     overdueCount: 0,
     overdueAmount: 0,
   };
@@ -27,6 +30,9 @@ export function buildReport(database, today) {
     totals.cashCollected += row.cashCollected;
     totals.streetCapital += row.streetCapital;
     totals.streetMoney += row.streetMoney;
+    totals.overdueCapital += row.overdueCapital;
+    totals.receivable += row.receivable;
+    totals.pendingInterestDue += row.pendingInterestDue;
     totals.overdueCount += row.overdueCount;
     totals.overdueAmount += row.overdueAmount;
     const client = (database.clients ?? []).find((item) => item.id === loan.clientId);
@@ -37,12 +43,14 @@ export function buildReport(database, today) {
     ...totals,
     realEarnings: totals.collectedInterest + totals.collectedLateFees,
     pendingInterest: Math.max(0, totals.projectedInterest - totals.collectedInterest),
+    projectedEarnings: totals.projectedInterest,
     loanCount: loans.length,
     activeLoans: loans.filter((loan) => loan.status !== "paid").length,
     rows: rows.sort((a, b) => b.streetMoney - a.streetMoney),
   };
 }
 
+// Dinero en la calle = capital aún no recuperado; los intereses y la mora se cuentan aparte como ganancias.
 // Compara el interés programado con el interés efectivamente cobrado; la mora no se mezcla con el interés.
 export function monthlyProjection(database) {
   const months = new Map();
@@ -82,6 +90,9 @@ function summarizeLoan(loan, today) {
     cashCollected: 0,
     streetCapital: 0,
     streetMoney: 0,
+    overdueCapital: 0,
+    receivable: 0,
+    pendingInterestDue: 0,
     overdueCount: 0,
     overdueAmount: 0,
     status: loan.status ?? "active",
@@ -98,9 +109,12 @@ function summarizeLoan(loan, today) {
 
     const due = amountDue(installment, today);
     summary.streetCapital += roundMoney(installment.capitalPart);
-    summary.streetMoney += due;
+    summary.streetMoney += roundMoney(installment.capitalPart);
+    summary.pendingInterestDue += roundMoney(installment.interestPart);
+    summary.receivable += due;
     if (installmentStatus(installment, today) === "overdue") {
       summary.overdueCount += 1;
+      summary.overdueCapital += roundMoney(installment.capitalPart);
       summary.overdueAmount += due;
     }
   }

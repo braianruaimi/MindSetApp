@@ -1,6 +1,7 @@
 import { normalizeDatabase, validateDatabase } from "./storage";
 import { decryptLocalValue, encryptLocalValue, isEncryptedLocalValue } from "./localEncryption";
 import { encryptBackupTextWithPin } from "./backupCrypto";
+import { verifyBackupText } from "./backupVerify";
 
 export const BACKUP_EVENT = "mindset:data-mutated";
 const DB_NAME = "mindset-backups";
@@ -87,7 +88,9 @@ export async function deleteSnapshot(id) {
 export async function downloadSnapshot(snapshot, pin) {
   const stamp = String(snapshot.createdAt ?? new Date().toISOString()).slice(0, 19).replace(/[:T]/g, "-");
   const text = await encryptBackupTextWithPin(snapshot.state, pin);
+  const summary = await verifyBackupText(text, pin, snapshot.state);
   downloadBackupText(text, `mindset-backup-${stamp}-cifrado.json`);
+  return summary;
 }
 
 export function downloadBackupText(text, filename) {
