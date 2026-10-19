@@ -1,4 +1,14 @@
-# React + Vite
+# MindSet Préstamos
+
+## Acceso a la aplicación
+
+Abre la aplicación desde este enlace:
+
+[MindSet Préstamos — abrir aplicación](https://braianruaimi.github.io/MindSetApp/)
+
+---
+
+## React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
